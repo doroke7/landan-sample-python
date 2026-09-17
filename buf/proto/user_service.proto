@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+// 關鍵核心：這裡決定了自動生成的資料夾名稱
+package pb; 
+
+service UserService {
+  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  string username = 1;
+}

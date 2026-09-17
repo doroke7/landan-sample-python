@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package pb2.admin;
+option go_package = "./pb2_admin";
+// 定義服務
+
+
+// 定義請求訊息
+message User {
+  string name = 1;
+}

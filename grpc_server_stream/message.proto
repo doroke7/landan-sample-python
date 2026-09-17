@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+// package 名稱同步改為 message
+package message;
+
+// 定義服務
+service MessageService {
+    // 伺服器串流：客戶端發送一個請求，伺服器回傳一連串的訊息串流
+    rpc SubscribeMessages (MessageRequest) returns (stream MessageResponse);
+}
+
+// 請求訊息
+message MessageRequest {
+    string topic = 1;
+    string user_id = 2;
+}
+
+// 回傳訊息
+message MessageResponse {
+    string content = 1;
+    int64 timestamp = 2;
+    int32 sequence = 3;
+}

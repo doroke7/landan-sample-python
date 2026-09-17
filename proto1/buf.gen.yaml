@@ -1,0 +1,9 @@
+version: v2
+plugins:
+  # 1. 對齊 --python_out=./src
+  - remote: buf.build/protocolbuffers/python:v25.1
+    out: src
+
+  # 2. 對齊 --grpc_python_out=./src
+  - remote: buf.build/grpc/python:v1.62.1
+    out: src

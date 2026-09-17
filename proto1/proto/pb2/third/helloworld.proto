@@ -1,0 +1,21 @@
+syntax = "proto3";
+import "pb2/third/user.proto";
+
+package pb2.third;
+option go_package = "./pb2_third";  
+// 定義服務
+service Greeter {
+  // 傳入 HelloRequest，回傳 HelloReply
+  rpc SayHello (HelloRequest) returns (HelloReply) {}
+}
+
+// 定義請求訊息
+message HelloRequest {
+  string name = 1;
+}
+
+// 定義回傳訊息
+message HelloReply {
+  string message = 1;
+  User user = 2;
+}

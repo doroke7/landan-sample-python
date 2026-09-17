@@ -1,0 +1,3 @@
+version: v2
+modules:
+  - path: proto  # 告訴 buf 核心：起跑點是 proto 資料夾

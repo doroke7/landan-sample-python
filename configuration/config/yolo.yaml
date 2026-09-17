@@ -1,0 +1,14 @@
+poker:
+  detect:
+    card:
+      model:
+    back_flow_front:
+      model:
+  classify:
+    card:
+      model:
+    rank:
+      model:
+    suit:
+      model:
+    

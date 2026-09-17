@@ -1,0 +1,1 @@
+from .main import print_via_wheel

@@ -1,0 +1,9 @@
+version: v2
+plugins:
+  # 1. 生成 Python 純資料結構的 Module 類
+  - remote: buf.build/protocolbuffers/python:v29.1
+    out: pb
+    
+  # 2. 生成 Python gRPC 服務定義的 Module 類
+  - remote: buf.build/grpc/python:v1.70.0
+    out: pb
