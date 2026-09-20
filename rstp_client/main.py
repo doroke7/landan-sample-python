@@ -102,51 +102,52 @@ def parse_rtp(b_payload: bytes):
 
 class RtspClient:
     def __init__(self, s_url: str):
-        self.s_url = s_url
         o_u = urlparse(s_url)
-        self.s_host = o_u.hostname
-        self.i_port = o_u.port or 554  # RTSP 預設 port
+
+        self.url = s_url
+        self.host = o_u.hostname
+        self.port = o_u.port or 554  # RTSP 預設 port
         # URL 帶帳密時，組成 Basic 認證 header
-        self.s_auth = ""
+        self.auth = ""
         if o_u.username:
             s_cred = f"{o_u.username}:{o_u.password or ''}"
-            self.s_auth = "Authorization: Basic " + base64.b64encode(s_cred.encode()).decode() + "\r\n"
+            self.auth = "Authorization: Basic " + base64.b64encode(s_cred.encode()).decode() + "\r\n"
         # 請求用的 URL 不含帳密
-        self.s_req_url = f"rtsp://{self.s_host}:{self.i_port}{o_u.path or '/'}" + (f"?{o_u.query}" if o_u.query else "")
-        self.o_sock = socket.create_connection((self.s_host, self.i_port), timeout=10)
-        self.b_buf = b""  # 接收緩衝：socket 讀到的資料先放這，再依需要切出
-        self.i_cseq = 0  # 請求序號，每個請求 +1
-        self.s_session = ""  # SETUP 後伺服器給的 Session ID，之後每個請求都要帶
+        self.req_url = f"rtsp://{self.host}:{self.port}{o_u.path or '/'}" + (f"?{o_u.query}" if o_u.query else "")
+        self.sock = socket.create_connection((self.host, self.port), timeout=10)
+        self.buf = b""  # 接收緩衝：socket 讀到的資料先放這，再依需要切出
+        self.cSeq = 0  # 相當於 request_id（每個請求 +1），只是 RTSP 習慣叫它 CSeq
+        self.session = ""  # SETUP 後伺服器給的 Session ID，之後每個請求都要帶
 
     def _recv_more(self):
         # 從 socket 再讀一批資料接到緩衝後面；對方關閉連線時 recv 回傳空 bytes
-        b_data = self.o_sock.recv(65536)
+        b_data = self.sock.recv(65536)
         if not b_data:
             raise ConnectionError("server closed connection")
-        self.b_buf += b_data
+        self.buf += b_data
 
     def _read_exact(self, i_n: int) -> bytes:
         # 精確取出 i_n bytes，不夠就繼續讀 (TCP 是串流，不保證一次收滿)
-        while len(self.b_buf) < i_n:
+        while len(self.buf) < i_n:
             self._recv_more()
-        b_out, self.b_buf = self.b_buf[:i_n], self.b_buf[i_n:]
+        b_out, self.buf = self.buf[:i_n], self.buf[i_n:]
         return b_out
 
     def request(self, s_method: str, s_url: str = "", d_headers: dict | None = None):
         """送出一個 RTSP 請求，回傳 (回應 header dict, body 字串)。狀態碼非 200 會丟例外。"""
-        self.i_cseq += 1
-        s_msg = f"{s_method} {s_url or self.s_req_url} RTSP/1.0\r\nCSeq: {self.i_cseq}\r\n"
-        s_msg += "User-Agent: py-rtsp-ntp\r\n" + self.s_auth
-        if self.s_session:
-            s_msg += f"Session: {self.s_session}\r\n"
+        self.cSeq += 1
+        s_msg = f"{s_method} {s_url or self.req_url} RTSP/1.0\r\nCSeq: {self.cSeq}\r\n"
+        s_msg += "User-Agent: py-rtsp-ntp\r\n" + self.auth
+        if self.session:
+            s_msg += f"Session: {self.session}\r\n"
         for s_k, s_v in (d_headers or {}).items():
             s_msg += f"{s_k}: {s_v}\r\n"
-        self.o_sock.sendall((s_msg + "\r\n").encode())  # 空行代表 header 結束
+        self.sock.sendall((s_msg + "\r\n").encode())  # 空行代表 header 結束
 
         # 讀 header (直到空行)
-        while b"\r\n\r\n" not in self.b_buf:
+        while b"\r\n\r\n" not in self.buf:
             self._recv_more()
-        b_head, self.b_buf = self.b_buf.split(b"\r\n\r\n", 1)
+        b_head, self.buf = self.buf.split(b"\r\n\r\n", 1)
         a_lines = b_head.decode(errors="replace").split("\r\n")
         i_status = int(a_lines[0].split()[1])  # 第一行： RTSP/1.0 200 OK
         d_resp = {}
@@ -161,7 +162,7 @@ class RtspClient:
             raise RuntimeError(f"{s_method} failed: {a_lines[0]}")
         if "session" in d_resp:
             # 格式可能是 "12345678;timeout=60"，只取 ID
-            self.s_session = d_resp["session"].split(";")[0]
+            self.session = d_resp["session"].split(";")[0]
         return d_resp, s_body
 
     def read_interleaved(self):
@@ -172,10 +173,10 @@ class RtspClient:
                 i_ch, i_len = struct.unpack("!BH", self._read_exact(3))
                 return i_ch, self._read_exact(i_len)
             # 非 interleaved 資料 (例如 RTSP 回應)，整段 header 丟掉
-            self.b_buf = b_first + self.b_buf
-            while b"\r\n\r\n" not in self.b_buf:
+            self.buf = b_first + self.buf
+            while b"\r\n\r\n" not in self.buf:
                 self._recv_more()
-            _, self.b_buf = self.b_buf.split(b"\r\n\r\n", 1)
+            _, self.buf = self.buf.split(b"\r\n\r\n", 1)
 
     def close(self):
         # 盡量通知伺服器結束 session；失敗也無所謂，反正要關 socket
@@ -183,16 +184,16 @@ class RtspClient:
             self.request("TEARDOWN")
         except Exception:
             pass
-        self.o_sock.close()
+        self.sock.close()
 
 
 def pick_video(s_sdp: str):
-    """從 SDP 找出第一個 video track，回傳 (control, payload_type, clock_rate, codec)。"""
+    """從 SDP 找出第一個 video track，回傳 (codec, payload_type, clock_rate, control)，次序與 main() 的 print 一致。"""
     # SDP 範例：
     #   m=video 0 RTP/AVP 96          <- 一個媒體段落的開頭 (最後一欄是 payload type)
     #   a=rtpmap:96 H264/90000        <- payload type 對應的編碼與 clock rate
     #   a=control:trackID=0           <- SETUP 時要用的 track 路徑
-    s_control, i_pt, i_rate, s_codec = None, None, 90000, ""  # 影像 clock rate 預設 90000
+    s_codec, i_pt, i_rate, s_control = "", None, 90000, None  # 影像 clock rate 預設 90000
     b_in_video = False
     for s_line in s_sdp.splitlines():
         s_line = s_line.strip()
@@ -210,7 +211,7 @@ def pick_video(s_sdp: str):
                 s_codec, i_rate = o_m.group(2), int(o_m.group(3))
     if s_control is None:
         raise RuntimeError("SDP 中找不到 video track")
-    return s_control, i_pt, i_rate, s_codec
+    return s_codec, i_pt, i_rate, s_control
 
 
 def fmt(f_unix: float) -> str:
@@ -229,12 +230,14 @@ def main():
     o_c = RtspClient(o_args.url)
     o_c.request("OPTIONS")
     _, s_sdp = o_c.request("DESCRIBE", d_headers={"Accept": "application/sdp"})
-    s_control, i_pt, i_rate, s_codec = pick_video(s_sdp)
+    print(f"sdp: {s_sdp}")
+
+    s_codec, i_pt, i_rate, s_control = pick_video(s_sdp)
     print(f"video: {s_codec} pt={i_pt} clock_rate={i_rate}")
 
     # 2. SETUP：要求用同一條 TCP 連線傳資料 (RTP 走 channel 0、RTCP 走 channel 1)，再 PLAY 開始接收
     #    control 可能是完整 URL，也可能是相對路徑
-    s_track_url = s_control if s_control.startswith("rtsp://") else o_c.s_req_url.rstrip("/") + "/" + s_control
+    s_track_url = s_control if s_control.startswith("rtsp://") else o_c.req_url.rstrip("/") + "/" + s_control
     o_c.request("SETUP", s_track_url, {"Transport": "RTP/AVP/TCP;unicast;interleaved=0-1"})
     o_c.request("PLAY", d_headers={"Range": "npt=0.000-"})
 
