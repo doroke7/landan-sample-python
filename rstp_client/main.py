@@ -40,11 +40,11 @@ RTSP client：讀取每一幀的「絕對時間」(NTP 牆上時間)，純標準
           sr_unix     (牆上時間)
                   │                                 │
                   ▼                                 │
-      存成校準點 t_sr = (sr_rtp_ts, sr_unix)        │
+      存成校準點 (sr_rtp_ts, sr_unix)               │
                   │                                 │
                   └────────────────┬────────────────┘
                                    ▼
-                       t_sr 還沒收到？ ──是──> 印 abs=no-sr
+                       校準點還沒收到？ ──是──> 印 abs=no-sr
                                    │否
                                    ▼
              i_diff = i_ts - sr_rtp_ts        (差幾個 tick，處理 32-bit 環繞)
@@ -145,10 +145,13 @@ class RtspClient:
         while b"\r\n\r\n" not in self.buf:
             self.sock_recv()
         b_head, self.buf = self.buf.split(b"\r\n\r\n", 1)
-        a_lines = b_head.decode(errors="replace").split("\r\n")
-        i_status = int(a_lines[0].split()[1])  # 第一行： RTSP/1.0 200 OK
+        s_head = b_head.decode(errors="replace")
+        s_status_line, *a_header_lines = s_head.split("\r\n")
+        # 第一行： RTSP/1.0 200 OK
+        s_version, s_status_code, s_reason = s_status_line.split(" ", 2)
+        i_status = int(s_status_code)
         d_resp = {}
-        for s_line in a_lines[1:]:
+        for s_line in a_header_lines:
             if ":" in s_line:
                 s_k, s_v = s_line.split(":", 1)
                 d_resp[s_k.strip().lower()] = s_v.strip()  # key 統一轉小寫
@@ -161,10 +164,11 @@ class RtspClient:
             byte_body = self.sock_read(i_body_len)
             s_body = byte_body.decode(errors="replace")
         if i_status != 200:
-            raise RuntimeError(f"{s_method} failed: {a_lines[0]}")
+            raise RuntimeError(f"{s_method} failed: {s_status_line}")
         if "session" in d_resp:
             # 格式可能是 "12345678;timeout=60"，只取 ID
-            self.session = d_resp["session"].split(";")[0]
+            s_session_id, s_sep, s_params = d_resp["session"].partition(";")
+            self.session = s_session_id
         return d_resp, s_body
 
     def sock_recv_interleaved(self):
@@ -202,7 +206,8 @@ def pick_video(s_sdp: str):
         if s_line.startswith("m="):
             b_in_video = s_line.startswith("m=video")
             if b_in_video:
-                i_pt = int(s_line.split()[3])
+                s_media, s_port, s_proto, s_pt, *a_more_pt = s_line.split()
+                i_pt = int(s_pt)
             elif s_control:
                 break  # 已取得 video 資訊，遇到下一個媒體段落就結束
         elif b_in_video and s_line.startswith("a=control:"):
@@ -238,17 +243,18 @@ def main():
     o_client.request("PLAY", d_headers={"Range": "npt=0.000-"})
 
     # 3. 收封包：SR 更新時間對照，RTP 用對照換算絕對時間
-    t_sr = None  # 最近一次 SR 的 (sr_rtp_ts, sr_unix)；還沒收到就是 None
+    i_last_rtp_ts = None  # 最近一次 SR 的 rtp_ts (校準點的計數)；還沒收到就是 None
+    f_last_unixtime = None  # 最近一次 SR 的 unix 時間 (校準點的牆上時間)；還沒收到就是 None
     i_last_ts = None  # 上一幀的 rtp_ts，用來判斷是不是同一幀
     f_end = time.time() + o_args.seconds if o_args.seconds else None
     try:
         while f_end is None or time.time() < f_end:
             i_ch, byte_data = o_client.sock_recv_interleaved()
-            if i_ch == 1:  # RTCP
-                byte_sr = parse_sr(byte_data)
-                if byte_sr:
-                    t_sr = byte_sr
-                    print(f"[SR] rtp_ts(相對計數)={byte_sr[0]}  ntp(來源牆上時間)={byte_sr[1]}")
+            if i_ch == 1:  # RTCP(能收到 NTP 時間)
+                t_sr = parse_sr(byte_data)
+                if t_sr:
+                    i_last_rtp_ts, f_last_unixtime = t_sr
+                    print(f"[SR] rtp_ts(相對計數)={i_last_rtp_ts}  ntp(來源牆上時間)={f_last_unixtime}")
             elif i_ch == 0 and len(byte_data) >= 12:  # RTP (至少要有 12 bytes 的 header)
                 i_ptype, i_seq, i_ts, b_marker = parse_rtp(byte_data)
                 # 同一 rtp_ts 的多個封包屬於同一幀，只在該幀第一個封包印一次
@@ -256,12 +262,14 @@ def main():
                     continue
                 i_last_ts = i_ts
                 f_abs = 'no-sr'
-                if t_sr is not None:
-                    i_diff = ((i_ts - t_sr[0] + 2**31) % 2**32) - 2**31
-                    # 絕對時間 = SR 的 NTP 時間 + 時間戳差值 / clock_rate
-                    f_abs = t_sr[1] + i_diff / i_rate                    
+                if f_last_unixtime is not None:
+                    # 當前tick數差 = 這次的tick - 上一次的tick 然後取正
+                    i_diff = ((i_ts - i_last_rtp_ts + 2**31) % 2**32) - 2**31
+
+                    # 絕對時間 = 上一次的 unix 時間緩衝 + 差異tick / clock_rate          
+                    f_unixtime = f_last_unixtime + i_diff / i_rate                    
  
-                print(f"seq={i_seq} rtp_ts(相對計數)={i_ts}  abs(絕對時間)={f_abs}")
+                print(f"seq={i_seq} rtp_ts(相對計數)={i_ts}  abs(絕對時間)={f_unixtime}")
     except KeyboardInterrupt:
         pass
     finally:
