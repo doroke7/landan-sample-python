@@ -261,7 +261,7 @@ def main():
                 if i_ts == i_last_ts:
                     continue
                 i_last_ts = i_ts
-                f_abs = 'no-sr'
+                f_unixtime = 'no-sr'
                 if f_last_unixtime is not None:
                     # 當前tick數差 = 這次的tick - 上一次的tick 然後取正
                     i_diff = ((i_ts - i_last_rtp_ts + 2**31) % 2**32) - 2**31
