@@ -16,3 +16,8 @@ a=fmtp:97 config=1208; indexdeltalength=3; indexlength=3; mode=AAC-hbr; profile-
 
 
 ```
+
+## 核心思維
+1. RSTP 每一次都會回傳 cpu tick 數量
+2. RSTP 一段時間會回傳 unix time 時間
+3. 只要 我把當前 tick 數 - 上一次 的 tick 數 （並且知道一個 tick 多少時間）， 再加上 上一次 unix time 就是時間了。
