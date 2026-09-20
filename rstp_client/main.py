@@ -28,7 +28,7 @@ RTSP client：讀取每一幀的「絕對時間」(NTP 牆上時間)，純標準
     │   SETUP / PLAY (TCP interleaved)                            │
     └──────────────────────────────┬──────────────────────────────┘
                                    ▼
-                     read_interleaved() 持續收封包
+                     sock_recv_interleaved() 持續收封包
                                    │
                   ┌────────────────┴────────────────┐
              channel 1 (RTCP)                  channel 0 (RTP)
@@ -70,11 +70,6 @@ from urllib.parse import urlparse
 NTP_UNIX_OFFSET = 2208988800
 
 
-def ntp_to_unix(i_sec: int, i_frac: int) -> float:
-    # NTP 時間 = 32-bit 整數秒 + 32-bit 小數 (單位 1/2^32 秒)，轉成 Unix 秒 (float)
-    return i_sec - NTP_UNIX_OFFSET + i_frac / 2**32
-
-
 def parse_sr(b_payload: bytes):
     """解析 RTCP compound packet，回傳第一個 SR 的 (rtp_ts, unix_time)，沒有則 None。"""
     # 一個 RTCP 封包可能串了多個子封包 (SR + SDES ...)，逐個往後走
@@ -86,7 +81,10 @@ def parse_sr(b_payload: bytes):
         if i_pt == 200 and i_size >= 28:  # 200 = Sender Report
             # SR 內容：ssrc、ntp 秒、ntp 小數、rtp 時間戳 (後面還有封包數、位元組數，不需要)
             _, i_ntp_sec, i_ntp_frac, i_rtp_ts = struct.unpack_from("!IIII", b_payload, i_pos + 4)
-            return i_rtp_ts, ntp_to_unix(i_ntp_sec, i_ntp_frac)
+
+            # NTP 時間 = 32-bit 整數秒 + 32-bit 小數 (單位 1/2^32 秒)，轉成 Unix 秒 (float)
+            f_unix = i_ntp_sec - NTP_UNIX_OFFSET + i_ntp_frac / 2**32
+            return i_rtp_ts, f_unix
         i_pos += i_size
     return None
 
@@ -118,17 +116,17 @@ class RtspClient:
         self.cSeq = 0  # 相當於 request_id（每個請求 +1），只是 RTSP 習慣叫它 CSeq
         self.session = ""  # SETUP 後伺服器給的 Session ID，之後每個請求都要帶
 
-    def sockRecv(self):
+    def sock_recv(self):
         # 從 socket 再讀一批資料接到緩衝後面；對方關閉連線時 recv 回傳空 bytes
         byte_buffers = self.sock.recv(65536)
         if not byte_buffers:
             raise ConnectionError("server closed connection")
         self.buf += byte_buffers
 
-    def sockRead(self, i_position: int) -> bytes:
-        # 精確讀出 i_position bytes：緩衝不夠就繼續 sockRecv (TCP 是串流，不保證一次收滿)
+    def sock_read(self, i_position: int) -> bytes:
+        # 精確讀出 i_position bytes：緩衝不夠就繼續 sock_recv (TCP 是串流，不保證一次收滿)
         while len(self.buf) < i_position:
-            self.sockRecv()
+            self.sock_recv()
         b_out, self.buf = self.buf[:i_position], self.buf[i_position:]
         return b_out
 
@@ -145,7 +143,7 @@ class RtspClient:
 
         # 讀 header (直到空行)
         while b"\r\n\r\n" not in self.buf:
-            self.sockRecv()
+            self.sock_recv()
         b_head, self.buf = self.buf.split(b"\r\n\r\n", 1)
         a_lines = b_head.decode(errors="replace").split("\r\n")
         i_status = int(a_lines[0].split()[1])  # 第一行： RTSP/1.0 200 OK
@@ -160,7 +158,7 @@ class RtspClient:
         i_body_len = int(d_resp.get("content-length", 0))
         s_body = ""
         if i_body_len:
-            byte_body = self.sockRead(i_body_len)
+            byte_body = self.sock_read(i_body_len)
             s_body = byte_body.decode(errors="replace")
         if i_status != 200:
             raise RuntimeError(f"{s_method} failed: {a_lines[0]}")
@@ -169,17 +167,17 @@ class RtspClient:
             self.session = d_resp["session"].split(";")[0]
         return d_resp, s_body
 
-    def read_interleaved(self):
+    def sock_recv_interleaved(self):
         """回傳 (channel, payload)。中間若夾雜 RTSP 文字回應則略過。"""
         while True:
-            b_first = self.sockRead(1)
+            b_first = self.sock_read(1)
             if b_first == b"$":  # '$' 開頭 = interleaved 封包
-                i_ch, i_len = struct.unpack("!BH", self.sockRead(3))
-                return i_ch, self.sockRead(i_len)
+                i_ch, i_len = struct.unpack("!BH", self.sock_read(3))
+                return i_ch, self.sock_read(i_len)
             # 非 interleaved 資料 (例如 RTSP 回應)，整段 header 丟掉
             self.buf = b_first + self.buf
             while b"\r\n\r\n" not in self.buf:
-                self.sockRecv()
+                self.sock_recv()
             _, self.buf = self.buf.split(b"\r\n\r\n", 1)
 
     def close(self):
@@ -245,26 +243,25 @@ def main():
     f_end = time.time() + o_args.seconds if o_args.seconds else None
     try:
         while f_end is None or time.time() < f_end:
-            i_ch, b_data = o_client.read_interleaved()
+            i_ch, byte_data = o_client.sock_recv_interleaved()
             if i_ch == 1:  # RTCP
-                o_sr = parse_sr(b_data)
-                if o_sr:
-                    t_sr = o_sr
-                    print(f"[SR] rtp_ts={o_sr[0]}  ntp={o_sr[1]}")
-            elif i_ch == 0 and len(b_data) >= 12:  # RTP (至少要有 12 bytes 的 header)
-                i_ptype, i_seq, i_ts, b_marker = parse_rtp(b_data)
+                byte_sr = parse_sr(byte_data)
+                if byte_sr:
+                    t_sr = byte_sr
+                    print(f"[SR] rtp_ts(相對計數)={byte_sr[0]}  ntp(來源牆上時間)={byte_sr[1]}")
+            elif i_ch == 0 and len(byte_data) >= 12:  # RTP (至少要有 12 bytes 的 header)
+                i_ptype, i_seq, i_ts, b_marker = parse_rtp(byte_data)
                 # 同一 rtp_ts 的多個封包屬於同一幀，只在該幀第一個封包印一次
                 if i_ts == i_last_ts:
                     continue
                 i_last_ts = i_ts
-                if t_sr is None:
-                    print(f"seq={i_seq} rtp_ts={i_ts}  abs=no-sr")
-                    continue
-                # 32-bit 時間戳環繞處理 (轉成有號差值)
-                i_diff = ((i_ts - t_sr[0] + 2**31) % 2**32) - 2**31
-                # 絕對時間 = SR 的 NTP 時間 + 時間戳差值 / clock_rate
-                f_abs = t_sr[1] + i_diff / i_rate
-                print(f"seq={i_seq} rtp_ts={i_ts}  abs={f_abs}")
+                f_abs = 'no-sr'
+                if t_sr is not None:
+                    i_diff = ((i_ts - t_sr[0] + 2**31) % 2**32) - 2**31
+                    # 絕對時間 = SR 的 NTP 時間 + 時間戳差值 / clock_rate
+                    f_abs = t_sr[1] + i_diff / i_rate                    
+ 
+                print(f"seq={i_seq} rtp_ts(相對計數)={i_ts}  abs(絕對時間)={f_abs}")
     except KeyboardInterrupt:
         pass
     finally:
