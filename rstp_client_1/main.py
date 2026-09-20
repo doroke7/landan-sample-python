@@ -269,7 +269,7 @@ def main():
                     # 絕對時間 = 上一次的 unix 時間緩衝 + 差異tick / clock_rate          
                     f_unixtime = f_last_unixtime + i_diff / i_rate                    
  
-                print(f"seq={i_seq} rtp_ts(相對計數)={i_ts}  abs(絕對時間)={f_unixtime}")
+                print(f"seq={i_seq} rtp_ts(相對計數)={i_ts}  unixtime(絕對時間)={f_unixtime}")
     except KeyboardInterrupt:
         pass
     finally:
