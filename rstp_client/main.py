@@ -64,7 +64,6 @@ import re
 import socket
 import struct
 import time
-from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 # NTP epoch (1900-01-01) 與 Unix epoch (1970-01-01) 相差的秒數
@@ -119,18 +118,18 @@ class RtspClient:
         self.cSeq = 0  # 相當於 request_id（每個請求 +1），只是 RTSP 習慣叫它 CSeq
         self.session = ""  # SETUP 後伺服器給的 Session ID，之後每個請求都要帶
 
-    def _recv_more(self):
+    def sockRecv(self):
         # 從 socket 再讀一批資料接到緩衝後面；對方關閉連線時 recv 回傳空 bytes
-        b_data = self.sock.recv(65536)
-        if not b_data:
+        byte_buffers = self.sock.recv(65536)
+        if not byte_buffers:
             raise ConnectionError("server closed connection")
-        self.buf += b_data
+        self.buf += byte_buffers
 
-    def _read_exact(self, i_n: int) -> bytes:
-        # 精確取出 i_n bytes，不夠就繼續讀 (TCP 是串流，不保證一次收滿)
-        while len(self.buf) < i_n:
-            self._recv_more()
-        b_out, self.buf = self.buf[:i_n], self.buf[i_n:]
+    def sockRead(self, i_position: int) -> bytes:
+        # 精確讀出 i_position bytes：緩衝不夠就繼續 sockRecv (TCP 是串流，不保證一次收滿)
+        while len(self.buf) < i_position:
+            self.sockRecv()
+        b_out, self.buf = self.buf[:i_position], self.buf[i_position:]
         return b_out
 
     def request(self, s_method: str, s_url: str = "", d_headers: dict | None = None):
@@ -146,7 +145,7 @@ class RtspClient:
 
         # 讀 header (直到空行)
         while b"\r\n\r\n" not in self.buf:
-            self._recv_more()
+            self.sockRecv()
         b_head, self.buf = self.buf.split(b"\r\n\r\n", 1)
         a_lines = b_head.decode(errors="replace").split("\r\n")
         i_status = int(a_lines[0].split()[1])  # 第一行： RTSP/1.0 200 OK
@@ -155,9 +154,14 @@ class RtspClient:
             if ":" in s_line:
                 s_k, s_v = s_line.split(":", 1)
                 d_resp[s_k.strip().lower()] = s_v.strip()  # key 統一轉小寫
+
+
         # 有 Content-Length 就再讀 body (DESCRIBE 的 SDP 就在這裡)
         i_body_len = int(d_resp.get("content-length", 0))
-        s_body = self._read_exact(i_body_len).decode(errors="replace") if i_body_len else ""
+        s_body = ""
+        if i_body_len:
+            byte_body = self.sockRead(i_body_len)
+            s_body = byte_body.decode(errors="replace")
         if i_status != 200:
             raise RuntimeError(f"{s_method} failed: {a_lines[0]}")
         if "session" in d_resp:
@@ -168,14 +172,14 @@ class RtspClient:
     def read_interleaved(self):
         """回傳 (channel, payload)。中間若夾雜 RTSP 文字回應則略過。"""
         while True:
-            b_first = self._read_exact(1)
+            b_first = self.sockRead(1)
             if b_first == b"$":  # '$' 開頭 = interleaved 封包
-                i_ch, i_len = struct.unpack("!BH", self._read_exact(3))
-                return i_ch, self._read_exact(i_len)
+                i_ch, i_len = struct.unpack("!BH", self.sockRead(3))
+                return i_ch, self.sockRead(i_len)
             # 非 interleaved 資料 (例如 RTSP 回應)，整段 header 丟掉
             self.buf = b_first + self.buf
             while b"\r\n\r\n" not in self.buf:
-                self._recv_more()
+                self.sockRecv()
             _, self.buf = self.buf.split(b"\r\n\r\n", 1)
 
     def close(self):
@@ -214,22 +218,16 @@ def pick_video(s_sdp: str):
     return s_codec, i_pt, i_rate, s_control
 
 
-def fmt(f_unix: float) -> str:
-    # 顯示 UTC 與本地時間
-    o_utc = datetime.fromtimestamp(f_unix, tz=timezone.utc)
-    return f"{o_utc:%Y-%m-%d %H:%M:%S.%f}"[:-3] + "Z  local " + f"{o_utc.astimezone():%H:%M:%S.%f}"[:-3]
-
-
 def main():
-    o_p = argparse.ArgumentParser()
-    o_p.add_argument("url")
-    o_p.add_argument("--seconds", type=int, default=0, help="執行秒數，0 = 一直跑")
-    o_args = o_p.parse_args()
+    o_argument_parser = argparse.ArgumentParser()
+    o_argument_parser.add_argument("url")
+    o_argument_parser.add_argument("--seconds", type=int, default=0, help="執行秒數，0 = 一直跑")
+    o_args = o_argument_parser.parse_args()
 
     # 1. 握手：OPTIONS 確認連線、DESCRIBE 取得 SDP
-    o_c = RtspClient(o_args.url)
-    o_c.request("OPTIONS")
-    _, s_sdp = o_c.request("DESCRIBE", d_headers={"Accept": "application/sdp"})
+    o_client = RtspClient(o_args.url)
+    o_client.request("OPTIONS")
+    _, s_sdp = o_client.request("DESCRIBE", d_headers={"Accept": "application/sdp"})
     print(f"sdp: {s_sdp}")
 
     s_codec, i_pt, i_rate, s_control = pick_video(s_sdp)
@@ -237,9 +235,9 @@ def main():
 
     # 2. SETUP：要求用同一條 TCP 連線傳資料 (RTP 走 channel 0、RTCP 走 channel 1)，再 PLAY 開始接收
     #    control 可能是完整 URL，也可能是相對路徑
-    s_track_url = s_control if s_control.startswith("rtsp://") else o_c.req_url.rstrip("/") + "/" + s_control
-    o_c.request("SETUP", s_track_url, {"Transport": "RTP/AVP/TCP;unicast;interleaved=0-1"})
-    o_c.request("PLAY", d_headers={"Range": "npt=0.000-"})
+    s_track_url = s_control if s_control.startswith("rtsp://") else o_client.req_url.rstrip("/") + "/" + s_control
+    o_client.request("SETUP", s_track_url, {"Transport": "RTP/AVP/TCP;unicast;interleaved=0-1"})
+    o_client.request("PLAY", d_headers={"Range": "npt=0.000-"})
 
     # 3. 收封包：SR 更新時間對照，RTP 用對照換算絕對時間
     t_sr = None  # 最近一次 SR 的 (sr_rtp_ts, sr_unix)；還沒收到就是 None
@@ -247,12 +245,12 @@ def main():
     f_end = time.time() + o_args.seconds if o_args.seconds else None
     try:
         while f_end is None or time.time() < f_end:
-            i_ch, b_data = o_c.read_interleaved()
+            i_ch, b_data = o_client.read_interleaved()
             if i_ch == 1:  # RTCP
                 o_sr = parse_sr(b_data)
                 if o_sr:
                     t_sr = o_sr
-                    print(f"[SR] rtp_ts={o_sr[0]}  ntp={fmt(o_sr[1])}")
+                    print(f"[SR] rtp_ts={o_sr[0]}  ntp={o_sr[1]}")
             elif i_ch == 0 and len(b_data) >= 12:  # RTP (至少要有 12 bytes 的 header)
                 i_ptype, i_seq, i_ts, b_marker = parse_rtp(b_data)
                 # 同一 rtp_ts 的多個封包屬於同一幀，只在該幀第一個封包印一次
@@ -266,11 +264,11 @@ def main():
                 i_diff = ((i_ts - t_sr[0] + 2**31) % 2**32) - 2**31
                 # 絕對時間 = SR 的 NTP 時間 + 時間戳差值 / clock_rate
                 f_abs = t_sr[1] + i_diff / i_rate
-                print(f"seq={i_seq} rtp_ts={i_ts}  abs={fmt(f_abs)}")
+                print(f"seq={i_seq} rtp_ts={i_ts}  abs={f_abs}")
     except KeyboardInterrupt:
         pass
     finally:
-        o_c.close()
+        o_client.close()
 
 
 if __name__ == "__main__":
