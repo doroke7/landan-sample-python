@@ -1,0 +1,274 @@
+"""
+RTSP client：讀取每一幀的「絕對時間」(NTP 牆上時間)，純標準庫，不需安裝套件。
+
+原理
+    RTP 封包只帶相對時間戳 (rtp_ts)，起點隨機。
+    RTCP Sender Report (SR) 會給一組對照： rtp_ts_sr  <->  ntp_time_sr
+    所以任一封包的絕對時間 = ntp_time_sr + (rtp_ts - rtp_ts_sr) / clock_rate
+
+用法
+    python main.py rtsp://localhost:8554/mystream
+    python main.py rtsp://user:pass@host:8554/cam --seconds 30
+
+注意
+    - 拿到的時間是「來源端」的時鐘。攝影機要開 NTP 校時；ffmpeg / OBS 推流則是推流主機的時間。
+    - 來源沒送 SR 時，收不到絕對時間 (會顯示 no-sr)。
+    - 只支援 TCP interleaved 傳輸、無認證或 URL 帶帳密的 Basic 認證 (不支援 Digest)。
+
+流程
+    OPTIONS -> DESCRIBE (取 SDP) -> SETUP (要求 TCP interleaved) -> PLAY -> 持續讀封包
+    interleaved 封包格式： '$' + channel(1 byte) + length(2 bytes) + payload
+        channel 0 = RTP (影像資料)，channel 1 = RTCP (含 SR)
+
+絕對時間 abs 是怎麼算出來的
+
+    ┌─────────────────────────────────────────────────────────────┐
+    │ 握手                                                        │
+    │   DESCRIBE 拿到 SDP ──> pick_video() ──> clock_rate (90000) │
+    │   SETUP / PLAY (TCP interleaved)                            │
+    └──────────────────────────────┬──────────────────────────────┘
+                                   ▼
+                     read_interleaved() 持續收封包
+                                   │
+                  ┌────────────────┴────────────────┐
+             channel 1 (RTCP)                  channel 0 (RTP)
+                  │                                 │
+                  ▼                                 ▼
+             parse_sr()                        parse_rtp()
+        取出 SR 裡的兩個值：                  取出這一幀的：
+          sr_rtp_ts   (計數)                    i_ts  (rtp_ts 計數)
+          sr_unix     (牆上時間)
+                  │                                 │
+                  ▼                                 │
+      存成校準點 t_sr = (sr_rtp_ts, sr_unix)        │
+                  │                                 │
+                  └────────────────┬────────────────┘
+                                   ▼
+                       t_sr 還沒收到？ ──是──> 印 abs=no-sr
+                                   │否
+                                   ▼
+             i_diff = i_ts - sr_rtp_ts        (差幾個 tick，處理 32-bit 環繞)
+                                   ▼
+             秒數   = i_diff / clock_rate     (tick 換成秒)
+                                   ▼
+             abs    = sr_unix + 秒數          (校準點時間 + 經過秒數)
+
+    數字範例 (clock_rate = 90000)
+        SR：  rtp_ts=90000  <->  22:13:20.500
+        RTP： rtp_ts=180000
+        差值 = 90000 tick = 1 秒  ->  abs = 22:13:21.500
+"""
+import argparse
+import base64
+import re
+import socket
+import struct
+import time
+from datetime import datetime, timezone
+from urllib.parse import urlparse
+
+# NTP epoch (1900-01-01) 與 Unix epoch (1970-01-01) 相差的秒數
+NTP_UNIX_OFFSET = 2208988800
+
+
+def ntp_to_unix(i_sec: int, i_frac: int) -> float:
+    # NTP 時間 = 32-bit 整數秒 + 32-bit 小數 (單位 1/2^32 秒)，轉成 Unix 秒 (float)
+    return i_sec - NTP_UNIX_OFFSET + i_frac / 2**32
+
+
+def parse_sr(b_payload: bytes):
+    """解析 RTCP compound packet，回傳第一個 SR 的 (rtp_ts, unix_time)，沒有則 None。"""
+    # 一個 RTCP 封包可能串了多個子封包 (SR + SDES ...)，逐個往後走
+    i_pos = 0
+    while i_pos + 4 <= len(b_payload):
+        # 子封包 header：版本/旗標(1B)、packet type(1B)、長度(2B，單位為 4 bytes，且不含第一個 word)
+        i_first, i_pt, i_len = struct.unpack_from("!BBH", b_payload, i_pos)
+        i_size = (i_len + 1) * 4
+        if i_pt == 200 and i_size >= 28:  # 200 = Sender Report
+            # SR 內容：ssrc、ntp 秒、ntp 小數、rtp 時間戳 (後面還有封包數、位元組數，不需要)
+            _, i_ntp_sec, i_ntp_frac, i_rtp_ts = struct.unpack_from("!IIII", b_payload, i_pos + 4)
+            return i_rtp_ts, ntp_to_unix(i_ntp_sec, i_ntp_frac)
+        i_pos += i_size
+    return None
+
+
+def parse_rtp(b_payload: bytes):
+    """回傳 (payload_type, seq, rtp_ts, marker)。"""
+    # RTP 固定 header 12 bytes：旗標、(marker+payload type)、序號、時間戳、ssrc
+    i_b0, i_b1, i_seq, i_ts, _ssrc = struct.unpack_from("!BBHII", b_payload, 0)
+    # marker 位元在影像中通常代表「一幀的最後一個封包」
+    return i_b1 & 0x7F, i_seq, i_ts, bool(i_b1 & 0x80)
+
+
+class RtspClient:
+    def __init__(self, s_url: str):
+        self.s_url = s_url
+        o_u = urlparse(s_url)
+        self.s_host = o_u.hostname
+        self.i_port = o_u.port or 554  # RTSP 預設 port
+        # URL 帶帳密時，組成 Basic 認證 header
+        self.s_auth = ""
+        if o_u.username:
+            s_cred = f"{o_u.username}:{o_u.password or ''}"
+            self.s_auth = "Authorization: Basic " + base64.b64encode(s_cred.encode()).decode() + "\r\n"
+        # 請求用的 URL 不含帳密
+        self.s_req_url = f"rtsp://{self.s_host}:{self.i_port}{o_u.path or '/'}" + (f"?{o_u.query}" if o_u.query else "")
+        self.o_sock = socket.create_connection((self.s_host, self.i_port), timeout=10)
+        self.b_buf = b""  # 接收緩衝：socket 讀到的資料先放這，再依需要切出
+        self.i_cseq = 0  # 請求序號，每個請求 +1
+        self.s_session = ""  # SETUP 後伺服器給的 Session ID，之後每個請求都要帶
+
+    def _recv_more(self):
+        # 從 socket 再讀一批資料接到緩衝後面；對方關閉連線時 recv 回傳空 bytes
+        b_data = self.o_sock.recv(65536)
+        if not b_data:
+            raise ConnectionError("server closed connection")
+        self.b_buf += b_data
+
+    def _read_exact(self, i_n: int) -> bytes:
+        # 精確取出 i_n bytes，不夠就繼續讀 (TCP 是串流，不保證一次收滿)
+        while len(self.b_buf) < i_n:
+            self._recv_more()
+        b_out, self.b_buf = self.b_buf[:i_n], self.b_buf[i_n:]
+        return b_out
+
+    def request(self, s_method: str, s_url: str = "", d_headers: dict | None = None):
+        """送出一個 RTSP 請求，回傳 (回應 header dict, body 字串)。狀態碼非 200 會丟例外。"""
+        self.i_cseq += 1
+        s_msg = f"{s_method} {s_url or self.s_req_url} RTSP/1.0\r\nCSeq: {self.i_cseq}\r\n"
+        s_msg += "User-Agent: py-rtsp-ntp\r\n" + self.s_auth
+        if self.s_session:
+            s_msg += f"Session: {self.s_session}\r\n"
+        for s_k, s_v in (d_headers or {}).items():
+            s_msg += f"{s_k}: {s_v}\r\n"
+        self.o_sock.sendall((s_msg + "\r\n").encode())  # 空行代表 header 結束
+
+        # 讀 header (直到空行)
+        while b"\r\n\r\n" not in self.b_buf:
+            self._recv_more()
+        b_head, self.b_buf = self.b_buf.split(b"\r\n\r\n", 1)
+        a_lines = b_head.decode(errors="replace").split("\r\n")
+        i_status = int(a_lines[0].split()[1])  # 第一行： RTSP/1.0 200 OK
+        d_resp = {}
+        for s_line in a_lines[1:]:
+            if ":" in s_line:
+                s_k, s_v = s_line.split(":", 1)
+                d_resp[s_k.strip().lower()] = s_v.strip()  # key 統一轉小寫
+        # 有 Content-Length 就再讀 body (DESCRIBE 的 SDP 就在這裡)
+        i_body_len = int(d_resp.get("content-length", 0))
+        s_body = self._read_exact(i_body_len).decode(errors="replace") if i_body_len else ""
+        if i_status != 200:
+            raise RuntimeError(f"{s_method} failed: {a_lines[0]}")
+        if "session" in d_resp:
+            # 格式可能是 "12345678;timeout=60"，只取 ID
+            self.s_session = d_resp["session"].split(";")[0]
+        return d_resp, s_body
+
+    def read_interleaved(self):
+        """回傳 (channel, payload)。中間若夾雜 RTSP 文字回應則略過。"""
+        while True:
+            b_first = self._read_exact(1)
+            if b_first == b"$":  # '$' 開頭 = interleaved 封包
+                i_ch, i_len = struct.unpack("!BH", self._read_exact(3))
+                return i_ch, self._read_exact(i_len)
+            # 非 interleaved 資料 (例如 RTSP 回應)，整段 header 丟掉
+            self.b_buf = b_first + self.b_buf
+            while b"\r\n\r\n" not in self.b_buf:
+                self._recv_more()
+            _, self.b_buf = self.b_buf.split(b"\r\n\r\n", 1)
+
+    def close(self):
+        # 盡量通知伺服器結束 session；失敗也無所謂，反正要關 socket
+        try:
+            self.request("TEARDOWN")
+        except Exception:
+            pass
+        self.o_sock.close()
+
+
+def pick_video(s_sdp: str):
+    """從 SDP 找出第一個 video track，回傳 (control, payload_type, clock_rate, codec)。"""
+    # SDP 範例：
+    #   m=video 0 RTP/AVP 96          <- 一個媒體段落的開頭 (最後一欄是 payload type)
+    #   a=rtpmap:96 H264/90000        <- payload type 對應的編碼與 clock rate
+    #   a=control:trackID=0           <- SETUP 時要用的 track 路徑
+    s_control, i_pt, i_rate, s_codec = None, None, 90000, ""  # 影像 clock rate 預設 90000
+    b_in_video = False
+    for s_line in s_sdp.splitlines():
+        s_line = s_line.strip()
+        if s_line.startswith("m="):
+            b_in_video = s_line.startswith("m=video")
+            if b_in_video:
+                i_pt = int(s_line.split()[3])
+            elif s_control:
+                break  # 已取得 video 資訊，遇到下一個媒體段落就結束
+        elif b_in_video and s_line.startswith("a=control:"):
+            s_control = s_line[len("a=control:"):]
+        elif b_in_video and s_line.startswith("a=rtpmap:"):
+            o_m = re.match(r"a=rtpmap:(\d+)\s+([^/]+)/(\d+)", s_line)
+            if o_m and int(o_m.group(1)) == i_pt:
+                s_codec, i_rate = o_m.group(2), int(o_m.group(3))
+    if s_control is None:
+        raise RuntimeError("SDP 中找不到 video track")
+    return s_control, i_pt, i_rate, s_codec
+
+
+def fmt(f_unix: float) -> str:
+    # 顯示 UTC 與本地時間
+    o_utc = datetime.fromtimestamp(f_unix, tz=timezone.utc)
+    return f"{o_utc:%Y-%m-%d %H:%M:%S.%f}"[:-3] + "Z  local " + f"{o_utc.astimezone():%H:%M:%S.%f}"[:-3]
+
+
+def main():
+    o_p = argparse.ArgumentParser()
+    o_p.add_argument("url")
+    o_p.add_argument("--seconds", type=int, default=0, help="執行秒數，0 = 一直跑")
+    o_args = o_p.parse_args()
+
+    # 1. 握手：OPTIONS 確認連線、DESCRIBE 取得 SDP
+    o_c = RtspClient(o_args.url)
+    o_c.request("OPTIONS")
+    _, s_sdp = o_c.request("DESCRIBE", d_headers={"Accept": "application/sdp"})
+    s_control, i_pt, i_rate, s_codec = pick_video(s_sdp)
+    print(f"video: {s_codec} pt={i_pt} clock_rate={i_rate}")
+
+    # 2. SETUP：要求用同一條 TCP 連線傳資料 (RTP 走 channel 0、RTCP 走 channel 1)，再 PLAY 開始接收
+    #    control 可能是完整 URL，也可能是相對路徑
+    s_track_url = s_control if s_control.startswith("rtsp://") else o_c.s_req_url.rstrip("/") + "/" + s_control
+    o_c.request("SETUP", s_track_url, {"Transport": "RTP/AVP/TCP;unicast;interleaved=0-1"})
+    o_c.request("PLAY", d_headers={"Range": "npt=0.000-"})
+
+    # 3. 收封包：SR 更新時間對照，RTP 用對照換算絕對時間
+    t_sr = None  # 最近一次 SR 的 (sr_rtp_ts, sr_unix)；還沒收到就是 None
+    i_last_ts = None  # 上一幀的 rtp_ts，用來判斷是不是同一幀
+    f_end = time.time() + o_args.seconds if o_args.seconds else None
+    try:
+        while f_end is None or time.time() < f_end:
+            i_ch, b_data = o_c.read_interleaved()
+            if i_ch == 1:  # RTCP
+                o_sr = parse_sr(b_data)
+                if o_sr:
+                    t_sr = o_sr
+                    print(f"[SR] rtp_ts={o_sr[0]}  ntp={fmt(o_sr[1])}")
+            elif i_ch == 0 and len(b_data) >= 12:  # RTP (至少要有 12 bytes 的 header)
+                i_ptype, i_seq, i_ts, b_marker = parse_rtp(b_data)
+                # 同一 rtp_ts 的多個封包屬於同一幀，只在該幀第一個封包印一次
+                if i_ts == i_last_ts:
+                    continue
+                i_last_ts = i_ts
+                if t_sr is None:
+                    print(f"seq={i_seq} rtp_ts={i_ts}  abs=no-sr")
+                    continue
+                # 32-bit 時間戳環繞處理 (轉成有號差值)
+                i_diff = ((i_ts - t_sr[0] + 2**31) % 2**32) - 2**31
+                # 絕對時間 = SR 的 NTP 時間 + 時間戳差值 / clock_rate
+                f_abs = t_sr[1] + i_diff / i_rate
+                print(f"seq={i_seq} rtp_ts={i_ts}  abs={fmt(f_abs)}")
+    except KeyboardInterrupt:
+        pass
+    finally:
+        o_c.close()
+
+
+if __name__ == "__main__":
+    main()
