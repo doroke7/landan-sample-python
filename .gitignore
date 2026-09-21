@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.env
+.venv
+
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 项目特定
+datasets/**/*
+!datasets/**/
+!datasets/**/.gitkeep
+
+# 直接把原始標記與圖片放在 git 管理， 如果使用 google 網盤管理 會增加管理成本（需要找，需要核對）
+!datasets/all/**/labeling/*
+raw/
+
+# 日志
+*.log
+logs/
+log/
+
+sample/**/*
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.swp
+*~ 
+
+*.local
+
+/*.pt
+
+# Runtime outputs
+runtime/
