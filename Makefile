@@ -31,5 +31,5 @@ init:
 # 建置套件         打包 Python 套件          python -m build                    uv build
 
 install:
-	@uv sync                        
+	@uv sync --active                        
 
