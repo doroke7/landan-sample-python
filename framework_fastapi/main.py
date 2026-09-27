@@ -1,11 +1,8 @@
 
 from fastapi import FastAPI
 
-from src.controller.resource.app_user import router as app_user_router
 
 app = FastAPI(title="fastapi 範例")
-
-app.include_router(app_user_router)
 
 
 @app.get("/")
