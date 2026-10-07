@@ -1,0 +1,106 @@
+{
+  "version": "5.0.0",
+  "flags": {},
+  "shapes": [
+    {
+      "label": "Card",
+      "points": [
+        [
+          402.0,
+          467.0
+        ],
+        [
+          478.0,
+          523.0
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Card",
+      "points": [
+        [
+          541.0,
+          115.0
+        ],
+        [
+          620.0,
+          181.0
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Card",
+      "points": [
+        [
+          594.0,
+          524.0
+        ],
+        [
+          675.0,
+          591.0
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Flow",
+      "points": [
+        [
+          402.0,
+          467.0
+        ],
+        [
+          478.0,
+          523.0
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Flow",
+      "points": [
+        [
+          541.0,
+          115.0
+        ],
+        [
+          620.0,
+          181.0
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Back",
+      "points": [
+        [
+          594.0,
+          524.0
+        ],
+        [
+          675.0,
+          591.0
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    }
+  ],
+  "imagePath": "2026-05-25@12h05m06s715.png",
+  "imageData": null,
+  "imageHeight": 720,
+  "imageWidth": 1280
+}

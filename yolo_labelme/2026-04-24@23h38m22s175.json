@@ -1,0 +1,170 @@
+{
+  "version": "5.0.0",
+  "flags": {},
+  "shapes": [
+    {
+      "label": "Card",
+      "points": [
+        [
+          504.0,
+          315.5
+        ],
+        [
+          574.0,
+          366.5
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Card",
+      "points": [
+        [
+          716.0,
+          228.5
+        ],
+        [
+          786.0,
+          281.5
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Card",
+      "points": [
+        [
+          772.5,
+          347.0
+        ],
+        [
+          855.5,
+          429.0
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Front",
+      "points": [
+        [
+          504.0,
+          315.5
+        ],
+        [
+          574.0,
+          366.5
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Front",
+      "points": [
+        [
+          716.0,
+          228.5
+        ],
+        [
+          786.0,
+          281.5
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Back",
+      "points": [
+        [
+          772.5,
+          347.0
+        ],
+        [
+          855.5,
+          429.0
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Heart",
+      "points": [
+        [
+          504.0,
+          315.5
+        ],
+        [
+          574.0,
+          366.5
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "Diamond",
+      "points": [
+        [
+          716.0,
+          228.5
+        ],
+        [
+          786.0,
+          281.5
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "5",
+      "points": [
+        [
+          716.0,
+          228.5
+        ],
+        [
+          786.0,
+          281.5
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    },
+    {
+      "label": "10",
+      "points": [
+        [
+          504.0,
+          315.5
+        ],
+        [
+          574.0,
+          366.5
+        ]
+      ],
+      "group_id": null,
+      "shape_type": "rectangle",
+      "flags": {}
+    }
+  ],
+  "imagePath": "2026-04-24@23h38m22s175.png",
+  "imageData": null,
+  "imageHeight": 720,
+  "imageWidth": 1280
+}

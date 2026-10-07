@@ -17,7 +17,7 @@ uv run python src/main.py  # 訓練
 ## 目錄
 
 - `pyproject.toml`、`.python-version`、`uv.lock`：這個範例自己的 uv 專案設定（Python 3.12、ultralytics、torch）
-- `cfg/index.yaml`：完整的 YOLO 訓練參數（從專案的 `cfg/detect/poker/card/index.yaml` 拷貝，路徑改成相對本資料夾），想調參數改這個檔案
+- `cfg/index.yaml`：完整的 YOLO 訓練參數（從專案的 `cfg/poker/detect/card/index.yaml` 拷貝，路徑改成相對本資料夾），想調參數改這個檔案
 - `cfg/data.yaml`：資料集描述檔（圖片路徑、類別名稱）
 - `src/main.py`：訓練 + 用測試集評估
 - `datasets/`：範例資料集（train/val/test 的 images + labels，YOLO 格式的 txt）
