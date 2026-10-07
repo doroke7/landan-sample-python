@@ -1,0 +1,26 @@
+[project]
+name = "yolo-detect-poker-card"
+version = "0.1.0"
+description = "YOLO detect 撲克牌 訓練範例"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "ultralytics==8.4.115",
+    "torch",
+    "torchvision",
+]
+
+# Windows 的 pip 預設只有 CPU 版 torch，x86_64 / AMD64 機器改從 PyTorch 官方 CUDA 13.0 來源下載（GPU 版）
+# explicit = true：只有 torch / torchvision 走這個來源，其他套件照常走 PyPI
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "platform_machine == 'x86_64' or platform_machine == 'AMD64'" },
+]
+torchvision = [
+    { index = "pytorch-cu130", marker = "platform_machine == 'x86_64' or platform_machine == 'AMD64'" },
+]

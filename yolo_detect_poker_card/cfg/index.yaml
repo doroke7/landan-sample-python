@@ -1,0 +1,124 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# Global configuration YAML with settings and hyperparameters for YOLO training, validation, prediction and export
+# For documentation see https://docs.ultralytics.com/usage/cfg/
+
+task: detect # (str) YOLO task, i.e. detect, segment, classify, pose, obb # （任務類型：目標檢測）
+
+# Train settings -------------------------------------------------------------------------------------------------------
+model: yolo26n.pt # (str, optional) path to model file, i.e. yolov8n.pt, yolov8n.yaml # （預訓練起始權重，訓練完成後可改成 run/.../weights/best.pt 接著微調）
+data: cfg/data.yaml # (str, optional) path to data file, i.e. coco8.yaml # （資料集描述檔，記錄 train/val/test 圖片路徑跟類別數）
+epochs: 10 # (int) number of epochs to train for # （範例只訓練 10 個 epoch，跑完整個流程就好）
+time: # (float, optional) number of hours to train for, overrides epochs if supplied # （沒設定時數上限，用 epochs 控制訓練長度）
+patience: 5 # (int) epochs to wait for no observable improvement for early stopping of training # （連續 5 個 epoch 沒進步就提早停止）
+batch: 4 # (int) number of images per batch (-1 for AutoBatch) # （範例只有 20 張訓練圖，batch 小一點每個 epoch 才有多次更新）
+imgsz: 160 # (int | list) input images size as int for train and val modes, or list[h,w] for predict and export modes # （範例重點是學會流程，不是準確度，所以用很小的 160 讓訓練飛快；正式訓練照片是 1280x720，要準確就用 720,1280）
+save: True # (bool) save train checkpoints and predict results # （保存訓練 checkpoint 和預測結果）
+save_period: -1 # (int) Save checkpoint every x epochs (disabled if < 1) # （不用固定週期存檔，只保留最後跟最佳權重）
+cache: True # (bool) True/ram, disk or False. Use cache for data loading # （把圖片載入記憶體，第二個 epoch 起不用重新讀圖，範例資料集很小）
+device: # (int | str | list, optional) device to run on, i.e. cuda device=0 or device=0,1,2,3 or device=cpu # （用 Apple Silicon GPU 訓練）
+workers: 2 # (int) number of worker threads for data loading (per RANK if DDP) # （只用 2 個執行緒讀資料）
+project: run # (str, optional) project name # （輸出資料夾，本資料夾底下的 run/）
+name: result # (str, optional) experiment name, results saved to 'project/name' directory # （實驗名稱，訓練結果輸出到 run/result/，最好的權重是 run/result/weights/best.pt）
+exist_ok: False # (bool) whether to overwrite existing experiment # （不覆蓋既有實驗，路徑重複會自動加編號）
+pretrained: True # (bool | str) whether to use a pretrained model (bool) or a model to load weights from (str) # （使用預訓練權重開始訓練）
+optimizer: AdamW # (str) optimizer to use, choices=[SGD, Adam, Adamax, AdamW, NAdam, RAdam, RMSProp, auto] # （目前最好就是 SGD 跟 AdamW, SGD 理論可以收斂到最佳化（但是前提需要優化參數+足夠的樣本），所以我們還是建議  AdamW）
+verbose: True # (bool) whether to print verbose output # （印出詳細訓練過程）
+seed: 0 # (int) random seed for reproducibility # （固定隨機種子，方便重現結果）
+deterministic: False # (bool) whether to enable deterministic mode # （關閉確定性模式，訓練比較快）
+single_cls: False # (bool) train multi-class data as single-class # （不要把多類別當成單一類別訓練）
+rect: True # (bool) rectangular training if mode='train' or rectangular validation if mode='val'   # （開啟矩形訓練，保持原圖寬高比，避免變形, 好定位）
+cos_lr: True # (bool) use cosine learning rate scheduler # （開啟餘弦學習率排程，讓學習率平滑收斂）
+close_mosaic: 20 # (int) disable mosaic augmentation for final epochs (0 to disable) # （最後 20 個 epoch 關閉 mosaic 增強，讓收斂更穩定）
+resume: False # (bool) resume training from last checkpoint # （不從上次中斷點繼續訓練）
+amp: True # (bool) Automatic Mixed Precision (AMP) training, choices=[True, False], True runs AMP check # （開啟混合精度訓練，加速且省記憶體）
+fraction: 1.0 # (float) dataset fraction to train on (default is 1.0, all images in train set) # （使用全部訓練資料，不抽樣）
+profile: False # (bool) profile ONNX and TensorRT speeds during training for loggers # （不記錄 ONNX/TensorRT 推論效能）
+freeze: # (int | list, optional) freeze first n layers, or freeze list of layer indices during training # （不凍結任何層，全部參數都會被訓練）
+multi_scale: False # (bool) Whether to use multiscale during training  # （關閉，實際情況鏡頭固定）
+# Segmentation
+overlap_mask: True # (bool) merge object masks into a single image mask during training (segment train only) # （segment 任務專用，detect 用不到）
+mask_ratio: 4 # (int) mask downsample ratio (segment train only) # （segment 任務專用，detect 用不到）
+# Classification
+dropout: 0.0 # (float) use dropout regularization (classify train only) # （classify 任務專用，detect 用不到）
+
+# Val/Test settings ----------------------------------------------------------------------------------------------------
+val: True # (bool) validate/test during training # （訓練過程中執行驗證）
+split: val # (str) dataset split to use for validation, i.e. 'val', 'test' or 'train' # （用 val 這個切分做驗證）
+save_json: False # (bool) save results to JSON file # （範例不輸出驗證 JSON）
+save_hybrid: False # (bool) save hybrid version of labels (labels + additional predictions) # （不儲存標註+預測合併的混合版本）
+conf: # (float, optional) object confidence threshold for detection (default 0.25 predict, 0.001 val) # （沒設信心閾值，用預設（predict 0.25 / val 0.001））
+iou: 0.1 # (float) intersection over union (IoU) threshold for NMS # （NMS 的 IoU 閾值， 骰子的 Top 需要小一點）
+max_det: 300 # (int) maximum number of detections per image # （每張圖最多偵測 300 個目標）
+half: False # (bool) use half precision (FP16) # （不用半精度做驗證/推論）
+dnn: False # (bool) use OpenCV DNN for ONNX inference # （不使用 OpenCV DNN 做 ONNX 推論）
+plots: False # (bool) save plots and images during train/val # （範例不輸出訓練曲線圖，省下畫圖時間）
+
+# Predict settings -----------------------------------------------------------------------------------------------------
+source: # (str, optional) source directory for images or videos # （沒設定預測來源目錄）
+vid_stride: 1 # (int) video frame-rate stride # （影片每幀都處理，不跳幀）
+stream_buffer: False # (bool) buffer all streaming frames (True) or return the most recent frame (False) # （串流只保留最新一幀，不緩衝全部）
+visualize: False # (bool) visualize model features # （不視覺化模型中間特徵）
+augment: False # (bool) apply image augmentation to prediction sources # （預測時不做圖像增強（TTA））
+agnostic_nms: False # (bool) class-agnostic NMS # （NMS 時仍區分類別）
+classes: # (int | list[int], optional) filter results by class, i.e. classes=0, or classes=[0,2,3] # （沒有過濾特定類別，全部類別都預測）
+retina_masks: False # (bool) use high-resolution segmentation masks # （segment 任務專用，detect 用不到）
+embed: # (list[int], optional) return feature vectors/embeddings from given layers # （不輸出特徵向量）
+
+# Visualize settings ---------------------------------------------------------------------------------------------------
+show: False # (bool) show predicted images and videos if environment allows # （不即時顯示預測圖片/影片）
+save_frames: False # (bool) save predicted individual video frames # （不個別存影片的每一幀）
+save_txt: False # (bool) save results as .txt file # （不輸出 YOLO 格式 .txt 預測結果）
+save_conf: False # (bool) save results with confidence scores # （不在輸出結果附上信心分數）
+save_crop: False # (bool) save cropped images with results # （不儲存裁剪出的偵測物件圖）
+show_labels: True # (bool) show prediction labels, i.e. 'person' # （顯示預測類別名稱）
+show_conf: True # (bool) show prediction confidence, i.e. '0.99' # （顯示預測信心值）
+show_boxes: True # (bool) show prediction boxes # （顯示預測框）
+line_width: # (int, optional) line width of the bounding boxes. Scaled to image size if None. # （框線寬度用預設，依圖片大小自動縮放）
+
+# Export settings ------------------------------------------------------------------------------------------------------
+format: torchscript # (str) format to export to, choices at https://docs.ultralytics.com/modes/export/#export-formats # （匯出格式，實際上 train_detect.py 是另外呼叫 export(format="openvino")）
+keras: False # (bool) use Kera=s # （不匯出成 Keras 格式）
+optimize: False # (bool) TorchScript: optimize for mobile # （TorchScript 匯出不做行動裝置優化）
+int8: False # (bool) CoreML/TF INT8 quantization # （不做 INT8 量化）
+dynamic: False # (bool) ONNX/TF/TensorRT: dynamic axes # （匯出成固定輸入尺寸，不支援動態尺寸）
+simplify: True # (bool) ONNX: simplify model using `onnxslim` # （ONNX 匯出後用 onnxslim 精簡運算圖）
+opset: # (int, optional) ONNX: opset version # （ONNX opset 版本用預設）
+workspace: # (float, optional) TensorRT: workspace size (GiB), `None` will let TensorRT auto-allocate memory # （TensorRT workspace 大小讓它自動配置）
+nms: False # (bool) CoreML: add NMS # （CoreML 匯出不內建 NMS）
+
+# Hyperparameters ------------------------------------------------------------------------------------------------------
+lr0: 0.001 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3) # （注意不同優化器 參數大小不同）
+lrf: 0.01 # (float) final learning rate (lr0 * lrf) # （最終學習率 = lr0 * lrf）
+momentum: 0.937 # (float) SGD momentum/Adam beta1 # （SGD 動量／Adam beta1）
+weight_decay: 0.0005 # (float) optimizer weight decay 5e-4 # （權重衰減，防止過擬合）
+warmup_epochs: 3.0 # (float) warmup epochs (fractions ok) # （前 3 個 epoch 做學習率暖身）
+warmup_momentum: 0.8 # (float) warmup initial momentum # （暖身階段的初始動量）
+warmup_bias_lr: 0.1 # (float) warmup initial bias lr # （暖身階段 bias 的初始學習率）
+box: 10.0 # (float) box loss gain # （框回歸損失權重）
+cls: 0.5 # (float) cls loss gain (scale with pixels) # （分類損失權重）
+dfl: 1.5 # (float) dfl loss gain # （Distribution Focal Loss 權重）
+pose: 12.0 # (float) pose loss gain # （pose 任務專用，detect 用不到）
+kobj: 1.0 # (float) keypoint obj loss gain # （關鍵點置信度損失權重，pose 任務專用）
+nbs: 64 # (int) nominal batch size # （標稱批次大小，用來換算實際 batch 的損失縮放）
+hsv_h: 0.05 # (float) image HSV-Hue augmentation (fraction) # （色相隨機增強幅度，比預設大）
+hsv_s: 0.7 # (float) image HSV-Saturation augmentation (fraction) # （飽和度隨機增強幅度）
+hsv_v: 0.8 # (float) image HSV-Value augmentation (fraction) # （亮度隨機增強幅度）
+degrees: 0.0 # (float) image rotation (+/- deg)           #  （當 辨識 pipeline 是先 detect 再classify 時候， detect 角度訓練參數可以設定為0）
+translate: 0.0 # (float) image translation (+/- fraction)      # （禁用平移，防止物體出框）
+scale: 0.1 # (float) image scale (+/- gain)                       # （雖然鏡頭固定，但讓模型多看「不同解析度」的特徵，能增加遠距離識別的「韌性」。）
+shear: 0.1 # (float) image shear (+/- deg) # （骰子做剪切變形增強）
+perspective: 0.0001 # (float) image perspective (+/- fraction), range 0-0.001 # （攝影機固定往上拍，所以只需要少許歪斜參數）
+flipud: 0.0 # (float) image flip up-down (probability)     # （真實世界 不會出現 天空 跑到地板的情況）
+fliplr: 0.2 # (float) image flip left-right (probability)  # （detect 開啟左右翻轉，只關心形狀，不關心裡面的文字 ； classify 要關閉）
+bgr: 0.0 # (float) image channel BGR (probability) # （不做 BGR 通道互換增強）
+mosaic: 0.0 # (float) image mosaic (probability)    # （關閉拼貼，避免切邊）
+mixup: 0.0 # (float) image mixup (probability) # （不做 mixup 增強，離散類別不適合把兩張圖混在一起。 譬如 透明塑膠袋 跟 透明瓶子就適合mixup）
+copy_paste: 0.0 # (float) segment copy-paste (probability)  # （關閉。copy_paste 的邏輯是隨機抓取一張牌隨機貼在圖上，這會製造大量的「卡上有卡」樣本。這會誤導模型，讓它以為「堆疊」是允許的，甚至導致模型在並排的邊界處產生錯誤的信心。）
+copy_paste_mode: "flip" # (str) the method to do copy_paste augmentation (flip, mixup) # （copy_paste 開啟時用 flip 模式合成）
+auto_augment: autoaugment # (str) auto augmentation policy for classification (randaugment, autoaugment, augmix) # （augmix 不會）
+erasing: 0.0 # (float) probability of random erasing during classification training (0-0.9), 0 means no erasing, must be less than 1.0.  # （關閉遮擋）
+crop_fraction: 1.0 # (float) image crop fraction for classification (0.1-1), 1.0 means no crop, must be greater than 0.  # （1 確保驗證時不裁切邊緣）
+
+# Tracker settings ------------------------------------------------------------------------------------------------------
+tracker: botsort.yaml # (str) tracker type, choices=[botsort.yaml, bytetrack.yaml] # （多物件追蹤用的設定，detect 訓練用不到）

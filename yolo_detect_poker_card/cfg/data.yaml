@@ -1,0 +1,14 @@
+# 1. 資料集根目錄路徑 (建議使用絕對路徑，或相對於執行指令的路徑)
+path: datasets
+
+# 2. 訓練、驗證與測試集的子目錄路徑
+train: train/images  # 相對於 path 的路徑
+val: val/images      # 相對於 path 的路徑
+test: test/images    # 選填，可用於最終評估
+
+# 3. 類別數量
+nc: 1
+
+# 4. 類別名稱列表 (索引從 0 開始)
+names:
+  0: Card
