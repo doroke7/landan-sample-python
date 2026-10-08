@@ -1,0 +1,82 @@
+{
+  "version": "7.7.0",
+  "flags": {},
+  "shapes": [
+    {
+      "label": "Card",
+      "points": [
+        [
+          710.0598067090986,
+          620.4816817090984
+        ],
+        [
+          782.8098067090986,
+          707.1301192090984
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "5",
+      "points": [
+        [
+          710.0598067090986,
+          620.4816817090984
+        ],
+        [
+          782.8098067090986,
+          707.1301192090984
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Spade",
+      "points": [
+        [
+          710.0598067090986,
+          620.4816817090984
+        ],
+        [
+          782.8098067090986,
+          707.1301192090984
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    },
+    {
+      "label": "Front",
+      "points": [
+        [
+          710.0598067090986,
+          620.4816817090984
+        ],
+        [
+          782.8098067090986,
+          707.1301192090984
+        ]
+      ],
+      "group_id": null,
+      "description": "",
+      "shape_type": "rectangle",
+      "flags": {},
+      "mask": null
+    }
+  ],
+  "imagePath": "2026-04-24@01h52m00s746.png",
+  "imageData": null,
+  "imageHeight": 720,
+  "imageWidth": 1280
+}
