@@ -35,7 +35,7 @@ cd landan-sample-python
 cd yolo_labelme && uv venv .venv --seed --clear && uv sync && cd ..
 cd yolo_detect_poker_card && uv venv .venv --seed --clear && uv sync && cd ..
 cd yolo_classify_poker_suit &&  uv venv .venv --seed --clear && uv sync && cd ..
-cd landan-sample-pythonyolo_classify_poker_rank && uv venv .venv --seed --clear && uv sync && cd ..
+cd yolo_classify_poker_rank && uv venv .venv --seed --clear && uv sync && cd ..
 
 ```
 
