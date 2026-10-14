@@ -1,4 +1,4 @@
-## 學習重點
+# 學習重點
 ```txt
 A. 下載代碼
 B. 以 uv 安裝 python 基本套件
@@ -12,11 +12,11 @@ E. Yolo 套件的使用辦法
    > classify
 ```
 
-# A. 下載代碼
+### A. 下載代碼
 ```zsh
 git clone https://github.com/doroke7/landan-sample-python.git
 ```
-# B. 以 uv 安裝 python 基本套件
+### B. 以 uv 安裝 python 基本套件
 ```zsh
 cd landan-sample-python
 cd yolo_labelme && uv venv .venv --seed --clear && uv sync && cd ..
@@ -26,7 +26,7 @@ cd landan-sample-pythonyolo_classify_poker_rank && uv venv .venv --seed --clear 
 
 ```
 
-# C. Labelme 標記套件使用辦法
+### C. Labelme 標記套件使用辦法
 1. 以命令啟動Labelme 標記套件
 ```zsh 
 cd yolo_labelme 
@@ -42,9 +42,9 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
 ```
 ./datasets
 ```
-# D. 定義我們的 推論 pipeline （撲克牌為例子） 
+### D. 定義我們的 推論 pipeline （撲克牌為例子） 
 
-## D-1. 策略A (找 卡 -> 判斷 卡類型 -)
+#### D-1. 策略A (找 卡 -> 判斷 卡類型 -)
 優點: 每個基礎模型小，可以用 nano 等級模型
 缺點: 推論流程複雜
 ```
@@ -71,7 +71,7 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
                                     輸出：花色 + 點數
 ```
 
-## D-2. 策略B (detect「Front / Back / Flow」 -> 如果是 Front -> classify-rank, classify-suit)
+#### D-2. 策略B (detect「Front / Back / Flow」 -> 如果是 Front -> classify-rank, classify-suit)
 
 介於策略 A 和策略 C 之間：detect 不是只找「Card」，而是直接把正面、卡背、Flow 卡分成 3 類，省掉策略 A 的 classify「card」那一步；只有正面（Front）才需要再判斷花色和點數。對應專案現有的 detect strategy `poker/front_back_flow`（`cfg/poker/detect/front_back_flow/index.yaml`），這個 strategy 有練，但目前沒有接進 `annotate-auto-label` 的 pipeline。
 ```
@@ -94,7 +94,7 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
                                     輸出：花色 + 點數
 ```
 
-## D-3. 策略C (直接 detect 每一張牌：梅花1、梅花2 ... 加上 卡背、Flow 卡)
+#### D-3. 策略C (直接 detect 每一張牌：梅花1、梅花2 ... 加上 卡背、Flow 卡)
 優點： 推論流程 pipeline 簡單
 缺點： 樣本數量需要很大 （照片多）, 需要用 大型XL模型（Yolo XL 版本） 
 ```
@@ -129,7 +129,7 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
 
 
 
-# E. yolo 套件的使用辦法。
+### E. yolo 套件的使用辦法。
 1. 按照 Yolo Detect 官方格式 給他喂統計資料。一定得按照這個格式，除非你自己寫 Torch
 ```
    a. train 訓練母體資料, 裡面有所有 Card 的標記文案, 大約放 80%的照片
