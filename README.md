@@ -17,6 +17,19 @@ E. Yolo 套件的使用辦法
 git clone https://github.com/doroke7/landan-sample-python.git
 ```
 ### B. 以 uv 安裝 python 基本套件
+1. 安裝 uv 
+```zsh
+  # mac
+  brew install uv
+  brew tap nat-n/poethepoet
+  brew install nat-n/poethepoet/poethepoet
+  # win
+
+  irm https://astral.sh/uv/install.ps1 | iex
+  uv tool install poethepoet
+```
+
+2. 安裝 package 依賴
 ```zsh
 cd landan-sample-python
 cd yolo_labelme && uv venv .venv --seed --clear && uv sync && cd ..
