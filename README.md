@@ -86,7 +86,7 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
 
 #### D-2. 策略B (detect「Front / Back / Flow」 -> 如果是 Front -> classify-rank, classify-suit)
 
-介於策略 A 和策略 C 之間：detect 不是只找「Card」，而是直接把正面、卡背、Flow 卡分成 3 類，省掉策略 A 的 classify「card」那一步；只有正面（Front）才需要再判斷花色和點數。對應專案現有的 detect strategy `poker/front_back_flow`（`cfg/poker/detect/front_back_flow/index.yaml`），這個 strategy 有練，但目前沒有接進 `annotate-auto-label` 的 pipeline。
+
 ```
               原始照片
                  │
