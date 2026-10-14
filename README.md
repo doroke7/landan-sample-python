@@ -172,7 +172,7 @@ uv run python ./src/main.py
 ```
 
 
-6. 按照 Yolo Calssify 官方格式 給他喂統計資料。一定得按照這個格式，除非你自己寫 Torch
+6. 按照 Yolo Calssify model 官方格式 給他喂統計資料。一定得按照這個格式，除非你自己寫 Torch
 ```
    a. train 訓練母體資料, 裡面有所有 Card 的標記文案, 大約放 80%的照片
    b. val 訓練時候驗證資料, 裡面有 Card 的標記文案, 大約放 10%的照片
@@ -190,7 +190,7 @@ uv run python ./src/main.py
 cd ./yolo_classify_poker_suit
 ```
 
-9. 使用 yolo classiy 訓練 ，以 classify-poker-suit 為例子 
+9. 使用 yolo classiy model 訓練 ，以 classify-poker-suit 為例子 
 ```
 uv run python ./src/main.py
 ```
@@ -199,3 +199,5 @@ uv run python ./src/main.py
 ```
 給他圖片 buffer， 模型 return 東西的類型 （不含位置）
 ```
+
+11. 其實也可以自己定義 自己的 影像識別 AI （譬如 模型model 就包含了 pipeline， 但是我們不這麼做）
