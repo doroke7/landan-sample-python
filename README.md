@@ -86,7 +86,7 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
 
 #### D-2. 策略B (detect「Front / Back / Flow」 -> 如果是 Front -> classify-rank, classify-suit)
 
-介於策略 A 和策略 C 之間：detect 不是只找「Card」，而是直接把正面、卡背、Flow 卡分成 3 類，省掉策略 A 的 classify「card」那一步；只有正面（Front）才需要再判斷花色和點數。對應專案現有的 detect strategy `poker/front_back_flow`（`cfg/poker/detect/front_back_flow/index.yaml`），這個 strategy 有練，但目前沒有接進 `annotate-auto-label` 的 pipeline。
+
 ```
               原始照片
                  │
@@ -116,9 +116,9 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
                  ▼
         ① detect「54 類」── 一次找出畫面中每張撲克牌的位置，並直接判斷是哪一張牌／卡背／Flow 卡
                                   │
-    ┌─────────┬─────────┬─────────┼─────────┬─────────┬─────────┐     
-    ▼         ▼         ▼         ▼         ▼         ▼         ▼
- Club_A    Club_2    Club_3      ...     Spade_K    Back      Flow
+    ┌─────────┬─────────┬─────────┼─────────┬─────────┬─────────┬───────┐     
+    ▼         ▼         ▼         ▼         ▼         ▼         ▼       ▼ 
+ Club_A    Club_2    Club_3      ...     Spade_K    Back      Flow     ...
 
   （共 54 條路線）
 
@@ -131,8 +131,6 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
           卡背         : Back
           Flow 卡      : Flow
 
-        輸出：花色 + 點數，或 Back / Flow
-        （detect 的類別名稱就是答案，不用再 classify）
 ```
 
 
@@ -172,7 +170,7 @@ uv run python ./src/main.py
 ```
 
 
-6. 按照 Yolo Calssify 官方格式 給他喂統計資料。一定得按照這個格式，除非你自己寫 Torch
+6. 按照 Yolo Calssify model 官方格式 給他喂統計資料。一定得按照這個格式，除非你自己寫 Torch
 ```
    a. train 訓練母體資料, 裡面有所有 Card 的標記文案, 大約放 80%的照片
    b. val 訓練時候驗證資料, 裡面有 Card 的標記文案, 大約放 10%的照片
@@ -190,7 +188,7 @@ uv run python ./src/main.py
 cd ./yolo_classify_poker_suit
 ```
 
-9. 使用 yolo classiy 訓練 ，以 classify-poker-suit 為例子 
+9. 使用 yolo classiy model 訓練 ，以 classify-poker-suit 為例子 
 ```
 uv run python ./src/main.py
 ```
@@ -199,3 +197,5 @@ uv run python ./src/main.py
 ```
 給他圖片 buffer， 模型 return 東西的類型 （不含位置）
 ```
+
+11. 其實也可以自己定義 自己的 影像識別 AI （譬如 模型model 就包含了 pipeline， 但是我們不這麼做）
