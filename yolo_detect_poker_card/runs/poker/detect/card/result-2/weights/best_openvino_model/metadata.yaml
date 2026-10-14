@@ -1,0 +1,24 @@
+description: Ultralytics YOLO26n model trained on cfg\poker\detect\card\data.yaml
+author: Ultralytics
+date: '2026-10-12T05:42:18.467189+08:00'
+version: 8.4.115
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+head: Detect
+batch: 1
+imgsz:
+- 736
+- 1280
+names:
+  0: Card
+args:
+  data: null
+  batch: 1
+  fraction: 1.0
+  quantize: null
+  dynamic: false
+  nms: false
+channels: 3
+end2end: true

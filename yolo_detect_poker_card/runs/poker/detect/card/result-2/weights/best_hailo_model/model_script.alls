@@ -1,0 +1,1 @@
+nms_postprocess("/home/www/pk-studio-ir-model/runs/poker/detect/card/result-2/weights/best_hailo_model/nms_config.json", meta_arch=yolov6)
