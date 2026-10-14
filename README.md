@@ -24,21 +24,31 @@ cd landan-sample-pythonyolo_classify_poker_rank && uv venv .venv --seed --clear 
 
 ```
 
-# C. 
-```zsh Labelme 標記套件使用辦法
+# C. Labelme 標記套件使用辦法
+1. 以命令啟動Labelme 標記套件
+```zsh 
 cd yolo_labelme 
-uv run labelme datasets --labels cfg/classes.txt
+uv run labelme ./datasets --labels ./cfg/classes.txt
 
+```
+2. 定義“全”類型基本設定檔
+```
+./cfg/classes.txt
+```
+
+3. 放你想要標記的圖片集合
+```
+./datasets
 ```
 
 
 # D. yolo 套件的使用辦法。
-1. 我們需要按照 Yolo 官方格式 給他統計資料，然後訓練 >> 你要用別人的工具，就要按照別人的遊戲規則。除非你自己寫 Torch
+1. 按照 Yolo 官方格式 給他喂統計資料。除非你自己寫 Torch
 2. Detect 是什麼？
    思維：detect 是給模型 “大圖”，然後模型幫我們 “找東西” + “判斷類型”
    程式碼：就是 給他圖片 buffer， 模型 return 東西的 array 包含類型
 2. 使用腳本 python ，喂給他訓練格式的資料夾規格，然後訓練
-3. 使用 yolo detect 訓練 ，以 detect-poker-card 為例子（detect:撲克牌:卡片 所有位置的 模型）
+3. 以 detect-poker-card 為例子，使用 yolo detect 訓練 ，（detect:撲克牌:卡片 所有位置的 模型）
    a. train 訓練母體資料, 裡面有所有 Card 的標記文案, 大約 80%的照片
    b. val 訓練時候驗證資料, 裡面有 Card 的標記文案, 大約 10%的照片
    c. test 訓練完成的資料, 裡面有 Card 的標記文案, 大約 10%的照片
