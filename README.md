@@ -131,8 +131,6 @@ uv run labelme ./datasets --labels ./cfg/classes.txt
           卡背         : Back
           Flow 卡      : Flow
 
-        輸出：花色 + 點數，或 Back / Flow
-        （detect 的類別名稱就是答案，不用再 classify）
 ```
 
 
