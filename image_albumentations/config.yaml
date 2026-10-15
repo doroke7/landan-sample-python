@@ -1,5 +1,6 @@
 # 把 sample/image_albumentations/runtime/raw 的一張圖擴增 count 張，所有轉換都列出來，適合影像辨識（物件偵測、分類）的有開（p 大於 0），不適合的 p 設 0，想用就改成大於 0，轉換依序執行，每一項是 Albumentations 的類別名稱，底下是它的參數（參數名稱同官方文件）
 # p 是觸發機率（0 到 1），0 是不用；中括號 [a, b] 是範圍或尺寸；順序很重要：固定尺寸的裁切放最前面、會改尺寸的（Pad、Resize 等）放最後，不然尺寸被前面的轉換改掉會報錯
+# 名字前面的 O(...) 是單張圖的運算複雜度（近似，不含常數）：N=像素數（高×寬）、N'=輸出像素數、k=核大小、r=半徑、σ=平滑程度、B=框數、F=光圈數、I=迭代次數、S=步數或陰影數、K=控制點數、R×C=格數、P=碎片數、A=碎片面積、D=雨滴數、L=雨滴長度
 
 name: 2026-08-09@036                                        # runtime/raw 裡的檔名（不含副檔名），要有同名的 .png 和 .json
 count: 50                                                   # 擴增幾張，範圍 1 以上
@@ -7,78 +8,7 @@ bbox:                                                       # 框的處理（Bbo
   min_area: 0.0                                             # 轉換後框的面積小於這個值（像素）就移除，範圍 0 以上
   min_visibility: 0.0                                       # 轉換後框還留在畫面內的比例小於這個值就移除，範圍 0 到 1，0 是不檢查
 transforms:                                                 # 依序執行的轉換；上面是有開的（p 大於 0），下面是 p 為 0 的（不用）
-  HorizontalFlip:                                           # [✅] 左右翻轉
-    p: 0.4
-  VerticalFlip:                                             # [✅] 上下翻轉
-    p: 0.2
-  SafeRotate:                                               # [✅] 安全旋轉（整張留在畫面內）
-    limit: 4
-    p: 0.1
-  Affine:                                                   # [✅] 仿射（縮放、平移、旋轉、傾斜）
-    scale: [0.9, 1.1]
-    translate_percent: [-0.0, 0.0]
-    rotate: [-2, 2]
-    shear: [-4, 4]
-    p: 0.1
-  Perspective:                                              # [✅] 透視變形
-    scale: [0.02, 0.05]
-    p: 0.1
-  RandomBrightnessContrast:                                 # [✅] 亮度對比
-    brightness_limit: [-0.2, 0.2]
-    contrast_limit: [-0.2, 0.2]
-    p: 0.1
-  CLAHE:                                                    # [✅] 局部對比增強
-    clip_limit: 4.0
-    p: 0.1
-  Illumination:                                             # [✅] 光照
-    mode: "linear"
-    intensity_range: [0.01, 0.2]
-    effect_type: "both"
-    angle_range: [0, 360]
-    center_range: [0.1, 0.9]
-    sigma_range: [0.2, 1.0]
-    p: 0.1
-  ColorJitter:                                              # [✅] 色彩抖動
-    brightness: 0.1
-    contrast: 0.2
-    saturation: 0.2
-    hue: 0.02
-    p: 0.1
-  GaussianBlur:                                             # [✅] 高斯模糊
-    blur_limit: [3, 7]
-    p: 0.1
-  MotionBlur:                                               # [✅] 動態模糊
-    blur_limit: 7
-    p: 0.1
-  Sharpen:                                                  # [✅] 銳化
-    alpha: [0.2, 0.5]
-    lightness: [0.5, 1.0]
-    p: 0.1
-  GaussNoise:                                               # [✅] 高斯雜訊
-    std_range: [0.02, 0.1]
-    mean_range: [0.0, 0.0]
-    per_channel: true
-    p: 0.1
-  ISONoise:                                                 # [✅] ISO 雜訊
-    color_shift: [0.01, 0.05]
-    intensity: [0.1, 0.5]
-    p: 0.1
-  ImageCompression:                                         # [✅] 壓縮失真
-    compression_type: "jpeg"
-    quality_range: [60, 100]
-    p: 0.1
-  RandomShadow:                                             # [✅] 隨機陰影
-    shadow_roi: [0, 0.5, 1, 1]
-    num_shadows_limit: [1, 2]
-    shadow_dimension: 5
-    shadow_intensity_range: [0.5, 0.5]
-    p: 0.1
-  PiecewiseAffine:                                          # [✅] 局部仿射扭曲
-    scale: [0.010, 0.020]
-    nb_rows: 8
-    nb_cols: 8
-    p: 0
-  RandomSunFlare:                                           # [✅] 太陽光暈
+  RandomSunFlare:                                           # [✅] O(N·F) 太陽光暈
     flare_roi: [0.6, 0, 1, 0.3]
     src_radius: 150
     src_color: [130, 124, 114]
@@ -86,72 +16,132 @@ transforms:                                                 # 依序執行的轉
     num_flare_circles_range: [2, 4]
     method: "physics_based"
     p: 0.1
-  ToGray:                                                   # [✅] 轉灰階
-    num_output_channels: 3
-    method: "weighted_average"
-    p: 0.1
-  PlanckianJitter:                                          # [✅] 色溫
-    mode: "cied"
-    sampling_method: "uniform"
-    p: 0.1
-  Morphological:                                            # [✅] 形態學（膨脹、侵蝕）
+  Morphological:                                            # [✅] O(N·k + B·N·k) 形態學（膨脹、侵蝕）
     scale: [3, 5]
     operation: "dilation"
     p: 0.1 # 0.1
-  OpticalDistortion:                                        # [✅] 鏡頭扭曲
-    distort_limit: 0.2
-    p: 0.2 # 0.2
-  MedianBlur:                                               # [✅] 中值模糊
-    blur_limit: 4
-    p: 0 # 0.1
-  ChromaticAberration:                                      # [✅] 色差
-    primary_distortion_limit: [-0.3, 0.3]
-    secondary_distortion_limit: [-0.5, 0.5]
-    mode: "green_purple"
-    p: 0.1   # 0.1
-  GridElasticDeform:                                        # [✅] 格子彈性變形
-    num_grid_xy: [4, 4]
-    magnitude: 10
-    p: 0.1 # 0.1
-  SaltAndPepper:                                            # [✅] 椒鹽雜訊（跟 GaussNoise 類似，都是加雜訊）
-    amount: [0.01, 0.06]
-    salt_vs_pepper: [0.4, 0.6]
-    p: 0.1 # 0.1
-
-
-  Equalize:                                                 # [✅] 直方圖均衡化
-    mode: "cv"
-    by_channels: true
-    p: 0.1 # 0.1
-  InvertImg:                                                # [✅] 反相
-    p: 0.1 # 0.1
-  Solarize:                                                 # [✅] 曝光過度
-    threshold_range: [0.5, 0.5]
-    p: 0.1 # 0.1
-
-  # ---------- 以下 p 是 0，不用；已經有重複類似的 ----------
-  Rotate:                                                   # [⚠️] 旋轉（跟 SafeRotate、Affine 的旋轉重複，而且 limit 是 0 沒作用）
-    limit: 0
-    p: 0 # 0.1
-  RandomGamma:                                              # [⚠️] Gamma（跟 RandomBrightnessContrast 重複，都是調亮度）
-    gamma_limit: [80, 120]
-    p: 0 # 0.1
-  HueSaturationValue:                                       # [⚠️] 色相飽和度明度（跟 ColorJitter 重複，都是調色相、飽和度、明度）
-    hue_shift_limit: 10
-    sat_shift_limit: 20
-    val_shift_limit: 20
-    p: 0 # 0.1
-  GlassBlur:                                                # [⚠️] 玻璃模糊（跟 GaussianBlur 類似，而且很慢）
+  Sharpen:                                                  # [✅] O(N·k) 銳化
+    alpha: [0.2, 0.5]
+    lightness: [0.5, 1.0]
+    p: 0.1
+  GaussianBlur:                                             # [✅] O(N·k) 高斯模糊
+    blur_limit: [3, 7]
+    p: 0.1
+  GlassBlur:                                                # [⚠️] O(N·I) 玻璃模糊（跟 GaussianBlur 類似，而且很慢）
     sigma: 0.7
     max_delta: 2
     iterations: 1
     mode: "fast"
     p: 0 # 0.1
-  Defocus:                                                  # [⚠️] 失焦模糊（跟 GaussianBlur 類似，都是整張模糊）
+  ISONoise:                                                 # [✅] O(N) ISO 雜訊
+    color_shift: [0.01, 0.05]
+    intensity: [0.1, 0.5]
+    p: 0.1
+  OpticalDistortion:                                        # [✅] O(B·N) 鏡頭扭曲
+    distort_limit: 0.2
+    p: 0.2 # 0.2
+  Illumination:                                             # [✅] O(N) 光照
+    mode: "linear"
+    intensity_range: [0.01, 0.2]
+    effect_type: "both"
+    angle_range: [0, 360]
+    center_range: [0.1, 0.9]
+    sigma_range: [0.2, 1.0]
+    p: 0.1
+  GaussNoise:                                               # [✅] O(N) 高斯雜訊
+    std_range: [0.02, 0.1]
+    mean_range: [0.0, 0.0]
+    per_channel: true
+    p: 0.1
+  ChromaticAberration:                                      # [✅] O(N) 色差
+    primary_distortion_limit: [-0.3, 0.3]
+    secondary_distortion_limit: [-0.5, 0.5]
+    mode: "green_purple"
+    p: 0.1   # 0.1
+  CLAHE:                                                    # [✅] O(N) 局部對比增強
+    clip_limit: 4.0
+    p: 0.1
+  SaltAndPepper:                                            # [✅] O(N) 椒鹽雜訊（跟 GaussNoise 類似，都是加雜訊）
+    amount: [0.01, 0.06]
+    salt_vs_pepper: [0.4, 0.6]
+    p: 0.1 # 0.1
+  GridDistortion:                                           # [❌] O(B·N) 格子扭曲
+    num_steps: 5
+    distort_limit: 0.3
+    p: 0
+  RandomShadow:                                             # [✅] O(S·N) 隨機陰影
+    shadow_roi: [0, 0.5, 1, 1]
+    num_shadows_limit: [1, 2]
+    shadow_dimension: 5
+    shadow_intensity_range: [0.5, 0.5]
+    p: 0.1
+  ColorJitter:                                              # [✅] O(N) 色彩抖動
+    brightness: 0.1
+    contrast: 0.2
+    saturation: 0.2
+    hue: 0.02
+    p: 0.1
+  Perspective:                                              # [✅] O(N) 透視變形
+    scale: [0.02, 0.05]
+    p: 0.1
+  ImageCompression:                                         # [✅] O(N) 壓縮失真
+    compression_type: "jpeg"
+    quality_range: [60, 100]
+    p: 0.1
+  Affine:                                                   # [✅] O(N) 仿射（縮放、平移、旋轉、傾斜）
+    scale: [0.9, 1.1]
+    translate_percent: [-0.0, 0.0]
+    rotate: [-2, 2]
+    shear: [-4, 4]
+    p: 0.1
+  SafeRotate:                                               # [✅] O(N) 安全旋轉（整張留在畫面內）
+    limit: 4
+    p: 0.1
+  PlanckianJitter:                                          # [✅] O(N) 色溫
+    mode: "cied"
+    sampling_method: "uniform"
+    p: 0.1
+  RandomBrightnessContrast:                                 # [✅] O(N) 亮度對比
+    brightness_limit: [-0.2, 0.2]
+    contrast_limit: [-0.2, 0.2]
+    p: 0.1
+  VerticalFlip:                                             # [✅] O(N) 上下翻轉
+    p: 0.2
+  ToGray:                                                   # [✅] O(N) 轉灰階
+    num_output_channels: 3
+    method: "weighted_average"
+    p: 0.1
+  HorizontalFlip:                                           # [✅] O(N) 左右翻轉
+    p: 0.4
+  PiecewiseAffine:                                          # [❌] O(N·R·C + B·N) 局部仿射扭曲
+    scale: [0.010, 0.020]
+    nb_rows: 8
+    nb_cols: 8
+    p: 0
+  # ---------- 以下 p 是 0，不用；已經有重複類似的 ----------
+  ThinPlateSpline:                                          # [⚠️] O(N·K + B·N) 薄板樣條變形（跟 GridElasticDeform、ElasticTransform、OpticalDistortion 類似，框容易不準）
+    scale_range: [0.02, 0.05]
+    p: 0 # 0.2
+  PlasmaBrightnessContrast:                                 # [⚠️] O(N) 雲狀亮度對比（跟 RandomBrightnessContrast、Illumination 類似）
+    brightness_range: [-0.2, 0.2]
+    contrast_range: [-0.2, 0.2]
+    plasma_size: 256
+    roughness: 3.0
+    p: 0 # 0.1
+  PlasmaShadow:                                             # [⚠️] O(N) 雲狀陰影（跟 RandomShadow 重複）
+    shadow_intensity_range: [0.3, 0.7]
+    plasma_size: 256
+    roughness: 3.0
+    p: 0 # 0.1
+  ElasticTransform:                                         # [⚠️] O(N·σ + B·N) 彈性扭曲（跟 GridElasticDeform、ThinPlateSpline 類似，框容易不準）
+    alpha: 500
+    sigma: 20
+    p: 0  # 0.2
+  Defocus:                                                  # [⚠️] O(N·r²) 失焦模糊（跟 GaussianBlur 類似，都是整張模糊）
     radius: [1, 3]
     alias_blur: [0.1, 0.3]
     p: 0 # 0.1
-  AdvancedBlur:                                             # [⚠️] 進階模糊（跟 GaussianBlur、MotionBlur 重複，是它們的進階版）
+  AdvancedBlur:                                             # [⚠️] O(N·k²) 進階模糊（跟 GaussianBlur、MotionBlur 重複，是它們的進階版）
     blur_limit: [3, 7]
     sigma_x_limit: [0.2, 1.0]
     sigma_y_limit: [0.2, 1.0]
@@ -159,117 +149,138 @@ transforms:                                                 # 依序執行的轉
     beta_limit: [0.5, 8.0]
     noise_limit: [0.9, 1.1]
     p: 0  # 0.1
-  PlasmaBrightnessContrast:                                 # [⚠️] 雲狀亮度對比（跟 RandomBrightnessContrast、Illumination 類似）
-    brightness_range: [-0.2, 0.2]
-    contrast_range: [-0.2, 0.2]
-    plasma_size: 256
-    roughness: 3.0
+  MotionBlur:                                               # [✅] O(N·k²) 動態模糊
+    blur_limit: 7
+    p: 0.1
+  MedianBlur:                                               # [⚠️] O(N·k) 中值模糊
+    blur_limit: 4
     p: 0 # 0.1
-  ThinPlateSpline:                                          # [⚠️] 薄板樣條變形（跟 GridElasticDeform、ElasticTransform、OpticalDistortion 類似，框容易不準）
-    scale_range: [0.02, 0.05]
-    p: 0 # 0.2
-  ChannelShuffle:                                           # [⚠️] 通道換位（跟 RGBShift、ChannelDropout 類似，會把顏色整個換掉）
-    p: 0 # 0.2
-  PlasmaShadow:                                             # [⚠️] 雲狀陰影（跟 RandomShadow 重複）
-    shadow_intensity_range: [0.3, 0.7]
-    plasma_size: 256
-    roughness: 3.0
+  ShotNoise:                                                # [⚠️] O(N) 散粒雜訊（跟 ISONoise 類似）
+    scale_range: [0.05, 0.1]
     p: 0 # 0.1
-  ElasticTransform:                                         # [⚠️] 彈性扭曲（跟 GridElasticDeform、ThinPlateSpline 類似，框容易不準）
-    alpha: 500
-    sigma: 20
-    p: 0  # 0.2
-  RGBShift:                                                 # [⚠️] RGB 位移（跟 ColorJitter、PlanckianJitter 類似，而且偏色很容易過頭）
+  HueSaturationValue:                                       # [⚠️] O(N) 色相飽和度明度（跟 ColorJitter 重複，都是調色相、飽和度、明度）
+    hue_shift_limit: 10
+    sat_shift_limit: 20
+    val_shift_limit: 20
+    p: 0 # 0.1
+  RandomGamma:                                              # [⚠️] O(N) Gamma（跟 RandomBrightnessContrast 重複，都是調亮度）
+    gamma_limit: [80, 120]
+    p: 0 # 0.1
+  RGBShift:                                                 # [⚠️] O(N) RGB 位移（跟 ColorJitter、PlanckianJitter 類似，而且偏色很容易過頭）
     r_shift_limit: 200
     g_shift_limit: 200
     b_shift_limit: 200
     p: 0 # 0.2
-  RandomToneCurve:                                          # [⚠️] 色調曲線（跟 RandomGamma、RandomBrightnessContrast 類似，都是調亮度曲線）
-    scale: 0.8
-    p: 0 # 0.2
-  ToSepia:                                                  # [⚠️] 轉棕褐色（跟 ToGray 類似，都是改成單色調）
-    p: 0 # 0.1
-  Posterize:                                                # [⚠️] 色調分離（跟 ImageCompression 類似，都是降畫質）
-    num_bits: 4
-    p: 0 # 0.1
-  AdditiveNoise:                                            # [⚠️] 加法雜訊（跟 GaussNoise 重複）
+  AdditiveNoise:                                            # [⚠️] O(N) 加法雜訊（跟 GaussNoise 重複）
     noise_type: "uniform"
     spatial_mode: "constant"
     approximation: 1.0
     p: 0 # 0.1
-
-  MultiplicativeNoise:                                      # [⚠️] 乘法雜訊（跟 GaussNoise 類似）
+  MultiplicativeNoise:                                      # [⚠️] O(N) 乘法雜訊（跟 GaussNoise 類似）
     multiplier: [0.8, 1.6]
     p: 0 # 0.1
-  ShotNoise:                                                # [⚠️] 散粒雜訊（跟 ISONoise 類似）
-    scale_range: [0.05, 0.1]
+  RandomToneCurve:                                          # [⚠️] O(N) 色調曲線（跟 RandomGamma、RandomBrightnessContrast 類似，都是調亮度曲線）
+    scale: 0.8
+    p: 0 # 0.2
+  Posterize:                                                # [⚠️] O(N) 色調分離（跟 ImageCompression 類似，都是降畫質）
+    num_bits: 4
     p: 0 # 0.1
-  ChannelDropout:                                           # [⚠️] 通道丟棄（跟 ChannelShuffle、RGBShift 類似，會讓顏色消失）
+  ChannelShuffle:                                           # [⚠️] O(N) 通道換位（跟 RGBShift、ChannelDropout 類似，會把顏色整個換掉）
+    p: 0 # 0.2
+  ChannelDropout:                                           # [⚠️] O(N) 通道丟棄（跟 ChannelShuffle、RGBShift 類似，會讓顏色消失）
     channel_drop_range: [1, 1]
     fill: 0
     p: 0 # 0.1
-
+  ToSepia:                                                  # [⚠️] O(N) 轉棕褐色（跟 ToGray 類似，都是改成單色調）
+    p: 0 # 0.1
+  Rotate:                                                   # [⚠️] O(N) 旋轉（跟 SafeRotate、Affine 的旋轉重複，而且 limit 是 0 沒作用）
+    limit: 0
+    p: 0 # 0.1
   # ---------- 以下 p 是 0，不用；對 yolo 訓練無幫助 ----------
-
-  RandomSizedBBoxSafeCrop:                                  # [❌] 不切到框的隨機裁切並縮放
-    height: 720
-    width: 1280
+  RandomFog:                                                # [❌] O(N) 霧
+    alpha_coef: 0.08
+    fog_coef_range: [0.01, 0.01]
     p: 0
-  CoarseDropout:                                            # [❌] 隨機挖洞
-    num_holes_range: [1, 2]
-    hole_height_range: [0.1, 0.2]
-    hole_width_range: [0.1, 0.2]
-    fill: 0
+  Superpixels:                                              # [❌] O(N·I) 超像素
+    p_replace: [0, 0.1]
+    n_segments: [100, 100]
+    max_size: 1024
+    p: 0 # 0
+  ZoomBlur:                                                 # [❌] O(N·S) 縮放模糊
+    max_factor: [1, 1.31]
+    step_factor: [0.01, 0.03]
     p: 0
-  Downscale:                                                # [❌] 縮小再放大
-    scale_range: [0.25, 0.25]
+  RingingOvershoot:                                         # [❌] O(N·k²) 邊緣振鈴
+    blur_limit: [7, 15]
+    cutoff: [0.7853981633974483, 1.5707963267948966]
     p: 0
-  RandomRotate90:                                           # [❌] 隨機轉 90 度
+  Emboss:                                                   # [❌] O(N) 浮雕
+    alpha: [0.2, 0.5]
+    strength: [0.2, 0.7]
     p: 0
-  RandomResizedCrop:                                        # [❌] 隨機裁切並縮放
-    size: [720, 1280]
-    scale: [0.5, 1.0]
+  Spatter:                                                  # [❌] O(N·k) 噴濺
+    mean: [0.65, 0.65]
+    std: [0.3, 0.3]
+    gauss_sigma: [2, 2]
+    cutout_threshold: [0.68, 0.68]
+    intensity: [0.6, 0.6]
+    mode: "rain"
     p: 0
-  RandomSizedCrop:                                          # [❌] 隨機大小裁切並縮放
-    min_max_height: [400, 576]
-    size: [720, 1280]
-    w2h_ratio: 1.7777777777777777
+  UnsharpMask:                                              # [❌] O(N·k) 反銳化遮罩
+    blur_limit: [3, 7]
+    sigma_limit: 0.0
+    alpha: [0.2, 0.5]
+    threshold: 10
     p: 0
-  RandomCrop:                                               # [❌] 隨機裁切
-    height: 576
-    width: 1024
+  GridElasticDeform:                                        # [✅] O(B·N) 格子彈性變形
+    num_grid_xy: [4, 4]
+    magnitude: 10
+    p: 0.1 # 0.1
+  FancyPCA:                                                 # [❌] O(N) PCA 改色
+    alpha: 50
     p: 0
-  CenterCrop:                                               # [❌] 中心裁切
-    height: 576
-    width: 1024
+  RandomGridShuffle:                                        # [❌] O(N) 格子打亂  
+    grid: [3, 3]
     p: 0
-  Crop:                                                     # [❌] 固定區域裁切
-    x_min: 0
-    y_min: 0
-    x_max: 1024
-    y_max: 576
+  PixelDropout:                                             # [❌] O(N) 像素丟棄
+    dropout_prob: 0.01
     p: 0
-  AtLeastOneBBoxRandomCrop:                                 # [❌] 至少含一個框的隨機裁切
-    height: 576
-    width: 1024
+  RandomSnow:                                               # [❌] O(N) 雪
+    brightness_coeff: 2.5
+    snow_point_range: [0.1, 0.3]
+    method: "bleach"
     p: 0
-  BBoxSafeRandomCrop:                                       # [❌] 不切到框的隨機裁切
-    erosion_rate: 0.0
+  RandomRain:                                               # [❌] O(N + D·L) 雨
+    slant_range: [-10, 10]
+    drop_width: 1
+    drop_color: [200, 200, 200]
+    blur_value: 7
+    brightness_coefficient: 0.7
+    rain_type: "default"
     p: 0
-  RandomCropFromBorders:                                    # [❌] 四邊隨機裁切
-    crop_left: 0.1
-    crop_right: 0.1
-    crop_top: 0.1
-    crop_bottom: 0.1
+  AutoContrast:                                             # [❌] O(N) 自動對比
+    cutoff: 0
+    method: "cdf"
     p: 0
-  CropAndPad:                                               # [❌] 裁切或補邊
+  RandomGravel:                                             # [❌] O(P·A) 碎石
+    gravel_roi: [0.1, 0.4, 0.9, 0.9]
+    number_of_patches: 2
+    p: 0
+  Equalize:                                                 # [✅] O(N) 直方圖均衡化
+    mode: "cv"
+    by_channels: true
+    p: 0.1 # 0.1
+  Transpose:                                                # [❌] O(N) 轉置
+    p: 0
+  CropAndPad:                                               # [❌] O(N') 裁切或補邊
     percent: [-0.1, 0.1]
     p: 0
-  Transpose:                                                # [❌] 轉置
+  Blur:                                                     # [❌] O(N) 平均模糊
+    blur_limit: 70
     p: 0
-  D4:                                                       # [❌] D4 對稱（8 種翻轉旋轉）
+  RandomRotate90:                                           # [❌] O(N) 隨機轉 90 度
     p: 0
-  SquareSymmetry:                                           # [❌] 正方形對稱
+  SquareSymmetry:                                           # [❌] O(N) 正方形對稱
     p: 0     
                                                               # SquareSymmetry 是「正方形的 8 種對稱變換，每張隨機挑一種做」。
                                                               # 它其實就是 D4 換了一個比較好懂的名字，跟 D4 完全一樣。
@@ -278,113 +289,97 @@ transforms:                                                 # 依序執行的轉
                                                               # - 轉 90 度、180 度、270 度
                                                               # - 左右翻轉、上下翻轉
                                                               # - 沿主對角線翻轉、沿反對角線翻轉
-  GridDistortion:                                           # [❌] 格子扭曲
-    num_steps: 5
-    distort_limit: 0.3
+  D4:                                                       # [❌] O(N) D4 對稱（8 種翻轉旋轉）
     p: 0
-  RandomGridShuffle:                                        # [❌] 格子打亂  
-    grid: [3, 3]
-    p: 0
-  ConstrainedCoarseDropout:                                 # [❌] 框內隨機挖洞
-    num_holes_range: [1, 1]
-    hole_height_range: [0.1, 0.1]
-    hole_width_range: [0.1, 0.1]
-    fill: 0
-    p: 0
-  GridDropout:                                              # [❌] 格子挖洞
+  GridDropout:                                              # [❌] O(N) 格子挖洞
     ratio: 0.5
     p: 0
-  PixelDropout:                                             # [❌] 像素丟棄
-    dropout_prob: 0.01
+  InvertImg:                                                # [✅] O(N) 反相
+    p: 0.1 # 0.1
+  Solarize:                                                 # [✅] O(N) 曝光過度
+    threshold_range: [0.5, 0.5]
+    p: 0.1 # 0.1
+  Downscale:                                                # [❌] O(N) 縮小再放大
+    scale_range: [0.25, 0.25]
     p: 0
-  XYMasking:                                                # [❌] 橫直線遮罩
+  RandomScale:                                              # [❌] O(N') 隨機縮放
+    scale_limit: 0.1
+    p: 0
+  RandomResizedCrop:                                        # [❌] O(N') 隨機裁切並縮放
+    size: [720, 1280]
+    scale: [0.5, 1.0]
+    p: 0
+  RandomSizedCrop:                                          # [❌] O(N') 隨機大小裁切並縮放
+    min_max_height: [400, 576]
+    size: [720, 1280]
+    w2h_ratio: 1.7777777777777777
+    p: 0
+  RandomSizedBBoxSafeCrop:                                  # [❌] O(N' + B) 不切到框的隨機裁切並縮放
+    height: 720
+    width: 1280
+    p: 0
+  XYMasking:                                                # [❌] O(N) 橫直線遮罩
     num_masks_x: [1, 2]
     num_masks_y: [1, 2]
     mask_x_length: [20, 60]
     mask_y_length: [20, 60]
     p: 0
-  Erasing:                                                  # [❌] 隨機擦掉
+  CoarseDropout:                                            # [❌] O(N) 隨機挖洞
+    num_holes_range: [1, 2]
+    hole_height_range: [0.1, 0.2]
+    hole_width_range: [0.1, 0.2]
+    fill: 0
+    p: 0
+  Erasing:                                                  # [❌] O(N) 隨機擦掉
     scale: [0.02, 0.33]
     p: 0
-  Pad:                                                      # [❌] 補邊
-    padding: 20
-    p: 0
-  PadIfNeeded:                                              # [❌] 不足就補邊
+  PadIfNeeded:                                              # [❌] O(N') 不足就補邊
     min_height: 800
     min_width: 1400
     p: 0
-  RandomScale:                                              # [❌] 隨機縮放
-    scale_limit: 0.1
+  Pad:                                                      # [❌] O(N') 補邊
+    padding: 20
     p: 0
-  Resize:                                                   # [❌] 縮放
+  LongestMaxSize:                                           # [❌] O(N') 最長邊縮放
+    max_size: 800
+    p: 0
+  SmallestMaxSize:                                          # [❌] O(N') 最短邊縮放
+    max_size: 400
+    p: 0
+  Resize:                                                   # [❌] O(N') 縮放
     height: 360
     width: 640
     p: 0
-  LongestMaxSize:                                           # [❌] 最長邊縮放
-    max_size: 800
+  RandomCropFromBorders:                                    # [❌] O(N') 四邊隨機裁切
+    crop_left: 0.1
+    crop_right: 0.1
+    crop_top: 0.1
+    crop_bottom: 0.1
     p: 0
-  SmallestMaxSize:                                          # [❌] 最短邊縮放
-    max_size: 400
+  AtLeastOneBBoxRandomCrop:                                 # [❌] O(N' + B) 至少含一個框的隨機裁切
+    height: 576
+    width: 1024
     p: 0
-  FancyPCA:                                                 # [❌] PCA 改色
-    alpha: 50
+  Crop:                                                     # [❌] O(N') 固定區域裁切
+    x_min: 0
+    y_min: 0
+    x_max: 1024
+    y_max: 576
     p: 0
-  Blur:                                                     # [❌] 平均模糊
-    blur_limit: 70
+  RandomCrop:                                               # [❌] O(N') 隨機裁切
+    height: 576
+    width: 1024
     p: 0
-  ZoomBlur:                                                 # [❌] 縮放模糊
-    max_factor: [1, 1.31]
-    step_factor: [0.01, 0.03]
+  CenterCrop:                                               # [❌] O(N') 中心裁切
+    height: 576
+    width: 1024
     p: 0
-  UnsharpMask:                                              # [❌] 反銳化遮罩
-    blur_limit: [3, 7]
-    sigma_limit: 0.0
-    alpha: [0.2, 0.5]
-    threshold: 10
+  BBoxSafeRandomCrop:                                       # [❌] O(N' + B) 不切到框的隨機裁切
+    erosion_rate: 0.0
     p: 0
-  Emboss:                                                   # [❌] 浮雕
-    alpha: [0.2, 0.5]
-    strength: [0.2, 0.7]
-    p: 0
-  RingingOvershoot:                                         # [❌] 邊緣振鈴
-    blur_limit: [7, 15]
-    cutoff: [0.7853981633974483, 1.5707963267948966]
-    p: 0
-  Superpixels:                                              # [❌] 超像素
-    p_replace: [0, 0.1]
-    n_segments: [100, 100]
-    max_size: 1024
-    p: 0 # 0
-  RandomFog:                                                # [❌] 霧
-    alpha_coef: 0.08
-    fog_coef_range: [0.01, 0.01]
-    p: 0
-  RandomRain:                                               # [❌] 雨
-    slant_range: [-10, 10]
-    drop_width: 1
-    drop_color: [200, 200, 200]
-    blur_value: 7
-    brightness_coefficient: 0.7
-    rain_type: "default"
-    p: 0
-  RandomSnow:                                               # [❌] 雪
-    brightness_coeff: 2.5
-    snow_point_range: [0.1, 0.3]
-    method: "bleach"
-    p: 0
-  RandomGravel:                                             # [❌] 碎石
-    gravel_roi: [0.1, 0.4, 0.9, 0.9]
-    number_of_patches: 2
-    p: 0
-  Spatter:                                                  # [❌] 噴濺
-    mean: [0.65, 0.65]
-    std: [0.3, 0.3]
-    gauss_sigma: [2, 2]
-    cutout_threshold: [0.68, 0.68]
-    intensity: [0.6, 0.6]
-    mode: "rain"
-    p: 0
-  AutoContrast:                                             # [❌] 自動對比
-    cutoff: 0
-    method: "cdf"
+  ConstrainedCoarseDropout:                                 # [❌] O(N) 框內隨機挖洞
+    num_holes_range: [1, 1]
+    hole_height_range: [0.1, 0.1]
+    hole_width_range: [0.1, 0.1]
+    fill: 0
     p: 0
