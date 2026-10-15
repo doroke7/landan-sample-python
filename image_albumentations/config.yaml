@@ -7,10 +7,6 @@ bbox:                                                       # 框的處理（Bbo
   min_area: 0.0                                             # 轉換後框的面積小於這個值（像素）就移除，範圍 0 以上
   min_visibility: 0.0                                       # 轉換後框還留在畫面內的比例小於這個值就移除，範圍 0 到 1，0 是不檢查
 transforms:                                                 # 依序執行的轉換；上面是有開的（p 大於 0），下面是 p 為 0 的（不用）
-  RandomSizedBBoxSafeCrop:                                  # 不切到框的隨機裁切並縮放
-    height: 720
-    width: 1280
-    p: 0.3
   HorizontalFlip:                                           # 左右翻轉
     p: 0.5
   VerticalFlip:                                             # 上下翻轉
@@ -95,6 +91,10 @@ transforms:                                                 # 依序執行的轉
   ###########################################################################################
   ########################################################################################################
   # ---------- 以下 p 是 0，不用；要用就把 p 改成大於 0，注意固定尺寸的裁切要在前面、會改尺寸的要在後面 ----------
+  RandomSizedBBoxSafeCrop:                                  # 不切到框的隨機裁切並縮放
+    height: 720
+    width: 1280
+    p: 0
   CoarseDropout:                                            # 隨機挖洞
     num_holes_range: [1, 2]
     hole_height_range: [0.1, 0.2]
@@ -260,7 +260,7 @@ transforms:                                                 # 依序執行的轉
   ToGray:                                                   # 轉灰階
     num_output_channels: 3
     method: "weighted_average"
-    p: 0
+    p: 1
   ToSepia:                                                  # 轉棕褐色
     p: 0
   InvertImg:                                                # 反相
