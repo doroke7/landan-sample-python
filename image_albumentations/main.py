@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 
 import albumentations
 import albumentations.augmentations.geometric.functional
@@ -21,6 +22,24 @@ class MorphologicalPerBox(albumentations.Morphological):  # 官方的 Morphologi
             l_masks.append(a_result)
         a_boxes[:, :4] = albumentations.augmentations.geometric.functional.bboxes_from_masks(numpy.stack(l_masks))
         return albumentations.core.bbox_utils.normalize_bboxes(a_boxes, l_shape)
+
+
+def create_piecewise_affine_maps(image_shape, grid, scale, absolute_scale, random_generator):  # 官方 2.0.8 的 PiecewiseAffine 把「控制點的目標座標」直接加權平均成整張 map，不管 scale 多小都會嚴重變形，這裡改成「原座標 + 平滑的位移」，scale 才有作用
+    i_height, i_width = image_shape[:2]
+    i_rows, i_cols = grid
+    if scale <= 0:
+        return None, None
+    f_jitter_scale = scale / 3 if absolute_scale else scale * min(i_width, i_height) / 3
+    a_jitter = random_generator.normal(0, f_jitter_scale, (i_rows, i_cols, 2)).astype(numpy.float32)
+    a_dy = cv2.resize(a_jitter[:, :, 0], (i_width, i_height), interpolation=cv2.INTER_CUBIC)  # 控制點的位移放大成整張圖的平滑位移
+    a_dx = cv2.resize(a_jitter[:, :, 1], (i_width, i_height), interpolation=cv2.INTER_CUBIC)
+    a_xx, a_yy = numpy.meshgrid(numpy.arange(i_width, dtype=numpy.float32), numpy.arange(i_height, dtype=numpy.float32))
+    a_map_x = numpy.clip(a_xx + a_dx, 0, i_width - 1)
+    a_map_y = numpy.clip(a_yy + a_dy, 0, i_height - 1)
+    return a_map_x, a_map_y
+
+
+albumentations.augmentations.geometric.functional.create_piecewise_affine_maps = create_piecewise_affine_maps
 
 
 def to_tuple(o_value):  # yaml 的 [a, b] 讀進來是 list，Albumentations 的範圍和尺寸參數要 tuple，遞迴轉過去
@@ -74,7 +93,8 @@ print(f"啟用的轉換: {len(l_transforms)} 個")
 o_bbox_params = albumentations.BboxParams(format="pascal_voc", label_fields=["l_labels"], min_area=d_bbox["min_area"], min_visibility=d_bbox["min_visibility"])
 o_transform = albumentations.Compose(l_transforms, bbox_params=o_bbox_params)
 
-os.makedirs("runtime/output", exist_ok=True)
+shutil.rmtree("runtime/output", ignore_errors=True)  # 先清掉舊的輸出，避免殘留上次多出來的檔案
+os.makedirs("runtime/output")
 for i_index in range(i_count):
     d_result = o_transform(image=a_image, bboxes=l_bboxes, l_labels=l_labels)
     a_output = d_result["image"]
@@ -90,3 +110,4 @@ for i_index in range(i_count):
     d_output["imagePath"] = f"{i_index}.png"
     with open(f"runtime/output/{i_index}.json", "w") as o_file:
         json.dump(d_output, o_file, ensure_ascii=False, indent=2)
+    print(f"轉換完成 {i_index + 1}/{i_count}: runtime/output/{i_index}.png")
