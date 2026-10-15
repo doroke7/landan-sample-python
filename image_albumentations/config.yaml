@@ -15,31 +15,31 @@ transforms:                                                 # 依序執行的轉
     angle_range: [0.1, 0.4]
     num_flare_circles_range: [2, 4]
     method: "physics_based"
-    p: 0.1
+    p: 0.3
   Morphological:                                            # [✅] O(N·k + B·N·k) 形態學（膨脹、侵蝕）
     scale: [3, 5]
     operation: "dilation"
-    p: 0.1 # 0.1
+    p: 0.3 # 0.1
   Sharpen:                                                  # [✅] O(N·k) 銳化
     alpha: [0.2, 0.5]
     lightness: [0.5, 1.0]
-    p: 0.1
+    p: 0.3
   GaussianBlur:                                             # [✅] O(N·k) 高斯模糊
     blur_limit: [3, 7]
-    p: 0.1
-  GlassBlur:                                                # [⚠️] O(N·I) 玻璃模糊（跟 GaussianBlur 類似，而且很慢）
+    p: 0.3
+  GlassBlur:                                                # [✅] O(N·I) 玻璃模糊（跟 GaussianBlur 類似，而且很慢）
     sigma: 0.7
     max_delta: 2
     iterations: 1
     mode: "fast"
-    p: 0 # 0.1
+    p: 0.3 # 0.1
   ISONoise:                                                 # [✅] O(N) ISO 雜訊
     color_shift: [0.01, 0.05]
     intensity: [0.1, 0.5]
-    p: 0.1
+    p: 0.3
   OpticalDistortion:                                        # [✅] O(B·N) 鏡頭扭曲
     distort_limit: 0.2
-    p: 0.2 # 0.2
+    p: 0.3 # 0.2
   Illumination:                                             # [✅] O(N) 光照
     mode: "linear"
     intensity_range: [0.01, 0.2]
@@ -47,77 +47,77 @@ transforms:                                                 # 依序執行的轉
     angle_range: [0, 360]
     center_range: [0.1, 0.9]
     sigma_range: [0.2, 1.0]
-    p: 0.1
+    p: 0.3
   GaussNoise:                                               # [✅] O(N) 高斯雜訊
     std_range: [0.02, 0.1]
     mean_range: [0.0, 0.0]
     per_channel: true
-    p: 0.1
+    p: 0.3
   ChromaticAberration:                                      # [✅] O(N) 色差
     primary_distortion_limit: [-0.3, 0.3]
     secondary_distortion_limit: [-0.5, 0.5]
     mode: "green_purple"
-    p: 0.1   # 0.1
+    p: 0.3  # 0.1
   CLAHE:                                                    # [✅] O(N) 局部對比增強
     clip_limit: 4.0
-    p: 0.1
+    p: 0.3
   SaltAndPepper:                                            # [✅] O(N) 椒鹽雜訊（跟 GaussNoise 類似，都是加雜訊）
     amount: [0.01, 0.06]
     salt_vs_pepper: [0.4, 0.6]
-    p: 0.1 # 0.1
+    p: 0.3 # 0.1
   GridDistortion:                                           # [❌] O(B·N) 格子扭曲
     num_steps: 5
     distort_limit: 0.3
-    p: 0
+    p: 0.3
   RandomShadow:                                             # [✅] O(S·N) 隨機陰影
     shadow_roi: [0, 0.5, 1, 1]
     num_shadows_limit: [1, 2]
     shadow_dimension: 5
     shadow_intensity_range: [0.5, 0.5]
-    p: 0.1
+    p: 0.3
   ColorJitter:                                              # [✅] O(N) 色彩抖動
     brightness: 0.1
     contrast: 0.2
     saturation: 0.2
     hue: 0.02
-    p: 0.1
+    p: 0.3
   Perspective:                                              # [✅] O(N) 透視變形
     scale: [0.02, 0.05]
-    p: 0.1
+    p: 0.3
   ImageCompression:                                         # [✅] O(N) 壓縮失真
     compression_type: "jpeg"
     quality_range: [60, 100]
-    p: 0.1
+    p: 0.3
   Affine:                                                   # [✅] O(N) 仿射（縮放、平移、旋轉、傾斜）
     scale: [0.9, 1.1]
     translate_percent: [-0.0, 0.0]
     rotate: [-2, 2]
     shear: [-4, 4]
-    p: 0.1
+    p: 0.3
   SafeRotate:                                               # [✅] O(N) 安全旋轉（整張留在畫面內）
     limit: 4
-    p: 0.1
+    p: 0.3
   PlanckianJitter:                                          # [✅] O(N) 色溫
     mode: "cied"
     sampling_method: "uniform"
-    p: 0.1
+    p: 0.3
   RandomBrightnessContrast:                                 # [✅] O(N) 亮度對比
     brightness_limit: [-0.2, 0.2]
     contrast_limit: [-0.2, 0.2]
-    p: 0.1
+    p: 0.3
   VerticalFlip:                                             # [✅] O(N) 上下翻轉
-    p: 0.2
+    p: 0.3
   ToGray:                                                   # [✅] O(N) 轉灰階
     num_output_channels: 3
     method: "weighted_average"
-    p: 0.1
+    p: 0.3
   HorizontalFlip:                                           # [✅] O(N) 左右翻轉
     p: 0.4
-  PiecewiseAffine:                                          # [❌] O(N·R·C + B·N) 局部仿射扭曲
+  PiecewiseAffine:                                          # [✅] O(N·R·C + B·N) 局部仿射扭曲
     scale: [0.010, 0.020]
     nb_rows: 8
     nb_cols: 8
-    p: 0
+    p: 0.3
   # ---------- 以下 p 是 0，不用；已經有重複類似的 ----------
   ThinPlateSpline:                                          # [⚠️] O(N·K + B·N) 薄板樣條變形（跟 GridElasticDeform、ElasticTransform、OpticalDistortion 類似，框容易不準）
     scale_range: [0.02, 0.05]
@@ -149,9 +149,9 @@ transforms:                                                 # 依序執行的轉
     beta_limit: [0.5, 8.0]
     noise_limit: [0.9, 1.1]
     p: 0  # 0.1
-  MotionBlur:                                               # [✅] O(N·k²) 動態模糊
+  MotionBlur:                                               # [⚠️] O(N·k²) 動態模糊
     blur_limit: 7
-    p: 0.1
+    p: 0
   MedianBlur:                                               # [⚠️] O(N·k) 中值模糊
     blur_limit: 4
     p: 0 # 0.1
@@ -232,10 +232,10 @@ transforms:                                                 # 依序執行的轉
     alpha: [0.2, 0.5]
     threshold: 10
     p: 0
-  GridElasticDeform:                                        # [✅] O(B·N) 格子彈性變形
+  GridElasticDeform:                                        # [❌] O(B·N) 格子彈性變形
     num_grid_xy: [4, 4]
     magnitude: 10
-    p: 0.1 # 0.1
+    p: 0 # 0.0
   FancyPCA:                                                 # [❌] O(N) PCA 改色
     alpha: 50
     p: 0
@@ -266,10 +266,10 @@ transforms:                                                 # 依序執行的轉
     gravel_roi: [0.1, 0.4, 0.9, 0.9]
     number_of_patches: 2
     p: 0
-  Equalize:                                                 # [✅] O(N) 直方圖均衡化
+  Equalize:                                                 # [❌] O(N) 直方圖均衡化
     mode: "cv"
     by_channels: true
-    p: 0.1 # 0.1
+    p: 0 # 0.1
   Transpose:                                                # [❌] O(N) 轉置
     p: 0
   CropAndPad:                                               # [❌] O(N') 裁切或補邊
@@ -294,11 +294,11 @@ transforms:                                                 # 依序執行的轉
   GridDropout:                                              # [❌] O(N) 格子挖洞
     ratio: 0.5
     p: 0
-  InvertImg:                                                # [✅] O(N) 反相
-    p: 0.1 # 0.1
-  Solarize:                                                 # [✅] O(N) 曝光過度
+  InvertImg:                                                # [❌] O(N) 反相
+    p: 0 # 0.1
+  Solarize:                                                 # [❌] O(N) 曝光過度
     threshold_range: [0.5, 0.5]
-    p: 0.1 # 0.1
+    p: 0 # 0.1
   Downscale:                                                # [❌] O(N) 縮小再放大
     scale_range: [0.25, 0.25]
     p: 0
