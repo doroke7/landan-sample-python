@@ -113,7 +113,23 @@ transforms:                                                 # 依序執行的轉
     num_grid_xy: [4, 4]
     magnitude: 10
     p: 0.1 # 0.1
-  # ---------- 以下標 [⚠️]：跟其他增強重複或類似，已經設成 p: 0（不用） ----------
+  SaltAndPepper:                                            # [✅] 椒鹽雜訊（跟 GaussNoise 類似，都是加雜訊）
+    amount: [0.01, 0.06]
+    salt_vs_pepper: [0.4, 0.6]
+    p: 0.1 # 0.1
+
+
+  Equalize:                                                 # [✅] 直方圖均衡化
+    mode: "cv"
+    by_channels: true
+    p: 0.1 # 0.1
+  InvertImg:                                                # [✅] 反相
+    p: 0.1 # 0.1
+  Solarize:                                                 # [✅] 曝光過度
+    threshold_range: [0.5, 0.5]
+    p: 0.1 # 0.1
+
+  # ---------- 以下 p 是 0，不用；已經有重複類似的 ----------
   Rotate:                                                   # [⚠️] 旋轉（跟 SafeRotate、Affine 的旋轉重複，而且 limit 是 0 沒作用）
     limit: 0
     p: 0 # 0.1
@@ -181,10 +197,7 @@ transforms:                                                 # 依序執行的轉
     spatial_mode: "constant"
     approximation: 1.0
     p: 0 # 0.1
-  SaltAndPepper:                                            # [⚠️] 椒鹽雜訊（跟 GaussNoise 類似，都是加雜訊）
-    amount: [0.01, 0.06]
-    salt_vs_pepper: [0.4, 0.6]
-    p: 0 # 0.1
+
   MultiplicativeNoise:                                      # [⚠️] 乘法雜訊（跟 GaussNoise 類似）
     multiplier: [0.8, 1.6]
     p: 0 # 0.1
@@ -195,18 +208,9 @@ transforms:                                                 # 依序執行的轉
     channel_drop_range: [1, 1]
     fill: 0
     p: 0 # 0.1
-  ###########################################################################################
-  ########################################################################################################
-  # ---------- 以下 p 是 0，不用；要用就把 p 改成大於 0，注意固定尺寸的裁切要在前面、會改尺寸的要在後面 ----------
-  Equalize:                                                 # [❌] 直方圖均衡化
-    mode: "cv"
-    by_channels: true
-    p: 0 # 0.1
-  InvertImg:                                                # [❌] 反相
-    p: 0 # 0.1
-  Solarize:                                                 # [❌] 曝光過度
-    threshold_range: [0.5, 0.5]
-    p: 0 # 0.1
+
+  # ---------- 以下 p 是 0，不用；對 yolo 訓練無幫助 ----------
+
   RandomSizedBBoxSafeCrop:                                  # [❌] 不切到框的隨機裁切並縮放
     height: 720
     width: 1280
