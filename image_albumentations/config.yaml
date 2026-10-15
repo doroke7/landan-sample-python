@@ -1,12 +1,17 @@
-# 把 sample/image_albumentations/runtime/raw 的一張圖擴增 count 張，所有轉換都列出來，適合影像辨識（物件偵測、分類）的有開（p 大於 0），不適合的 p 設 0，想用就改成大於 0，轉換依序執行，每一項是 Albumentations 的類別名稱，底下是它的參數（參數名稱同官方文件）
-# p 是觸發機率（0 到 1），0 是不用；中括號 [a, b] 是範圍或尺寸；順序很重要：固定尺寸的裁切放最前面、會改尺寸的（Pad、Resize 等）放最後，不然尺寸被前面的轉換改掉會報錯
+# gen-augmentation --project=die 的擴增參數；transforms 依序執行，每一項是 Albumentations 的類別名稱，底下是它的參數（參數名稱同官方文件）
+# p 是每張照片觸發該轉換的機率（0 到 1），0 是不用；沒寫 p 的轉換等於 p=0.5（官方預設），所以要關掉一定要寫 p: 0
+# 想用哪個轉換就把 p 改成大於 0；中括號 [a, b] 是範圍或尺寸；順序很重要：固定尺寸的裁切放最前面、會改尺寸的（Pad、Resize 等）放最後，不然尺寸被前面的轉換改掉會報錯
+# 讀取方式：用 config("die.augmentation") 整份當 dict 取用（config/die/augmentation.yaml），環境變數不會覆蓋整份；運算在 CPU，不用設定裝置
 # 名字前面的 O(...) 是單張圖的運算複雜度（近似，不含常數）：N=像素數（高×寬）、N'=輸出像素數、k=核大小、r=半徑、σ=平滑程度、B=框數、F=光圈數、I=迭代次數、S=步數或陰影數、K=控制點數、R×C=格數、P=碎片數、A=碎片面積、D=雨滴數、L=雨滴長度
 
-name: 2026-08-09@036                                        # runtime/raw 裡的檔名（不含副檔名），要有同名的 .png 和 .json
-count: 50                                                   # 擴增幾張，範圍 1 以上
-bbox:                                                       # 框的處理（BboxParams）
-  min_area: 0.0                                             # 轉換後框的面積小於這個值（像素）就移除，範圍 0 以上
-  min_visibility: 0.0                                       # 轉換後框還留在畫面內的比例小於這個值就移除，範圍 0 到 1，0 是不檢查
+count: 10                                                 # 每張照片擴增幾張，範圍 1 以上
+min_transforms: 1                                         # 每張擴增圖至少套用幾個轉換，範圍 0 以上，0 是不限制；每個轉換先依自己的 p 擲骰子，抽中不到這個數量就從沒抽中的隨機補
+max_transforms: 6                                         # 每張擴增圖最多套用幾個轉換
+
+
+bbox:                                                     # 框的處理（BboxParams）
+  min_area: 1.0                                           # 轉換後框的面積小於這個值（像素）就移除，範圍 0 以上
+  min_visibility: 0.0                                     # 轉換後框還留在畫面內的比例小於這個值就移除，範圍 0 到 1，0 是不檢查
 transforms:                                                 # 依序執行的轉換；上面是有開的（p 大於 0），下面是 p 為 0 的（不用）
   RandomSunFlare:                                           # [✅] O(N·F) 太陽光暈
     flare_roi: [0.6, 0, 1, 0.3]
@@ -15,19 +20,19 @@ transforms:                                                 # 依序執行的轉
     angle_range: [0.1, 0.4]
     num_flare_circles_range: [2, 4]
     method: "physics_based"
-    p: 0.3
+    p: 0.3 # 0.1
   Morphological:                                            # [✅] O(N·k + B·N·k) 形態學（膨脹、侵蝕）
     scale: [3, 5]
     operation: "dilation"
     p: 0.3 # 0.1
   Sharpen:                                                  # [✅] O(N·k) 銳化
     alpha: [0.2, 0.5]
-    lightness: [0.5, 1.0]
-    p: 0.3
+    lightness: [1.0, 1.0]
+    p: 0.3 # 0.1
   GaussianBlur:                                             # [✅] O(N·k) 高斯模糊
     blur_limit: [3, 7]
-    p: 0.3
-  GlassBlur:                                                # [✅] O(N·I) 玻璃模糊（跟 GaussianBlur 類似，而且很慢）
+    p: 0.3 # 0.1
+  GlassBlur:                                                # [✅] O(N·I) 玻璃模糊
     sigma: 0.7
     max_delta: 2
     iterations: 1
@@ -36,9 +41,10 @@ transforms:                                                 # 依序執行的轉
   ISONoise:                                                 # [✅] O(N) ISO 雜訊
     color_shift: [0.01, 0.05]
     intensity: [0.1, 0.5]
-    p: 0.3
+    p: 0.3 # 0.1
   OpticalDistortion:                                        # [✅] O(B·N) 鏡頭扭曲
-    distort_limit: 0.2
+    distort_limit: 0.05                                     # 原本 0.2 太強，四周會彎成魚眼還有黑邊
+    border_mode: 4
     p: 0.3 # 0.2
   Illumination:                                             # [✅] O(N) 光照
     mode: "linear"
@@ -47,20 +53,20 @@ transforms:                                                 # 依序執行的轉
     angle_range: [0, 360]
     center_range: [0.1, 0.9]
     sigma_range: [0.2, 1.0]
-    p: 0.3
+    p: 0.3 # 0.1
   GaussNoise:                                               # [✅] O(N) 高斯雜訊
     std_range: [0.02, 0.1]
     mean_range: [0.0, 0.0]
     per_channel: true
-    p: 0.3
+    p: 0.3 # 0.1
   ChromaticAberration:                                      # [✅] O(N) 色差
     primary_distortion_limit: [-0.3, 0.3]
     secondary_distortion_limit: [-0.5, 0.5]
     mode: "green_purple"
-    p: 0.3  # 0.1
+    p: 0.3   # 0.1
   CLAHE:                                                    # [✅] O(N) 局部對比增強
-    clip_limit: 4.0
-    p: 0.3
+    clip_limit: [1.0, 2.0]                                  # 原本 4.0 太強，亮暗會被拉到極端
+    p: 0.3 # 0.1
   SaltAndPepper:                                            # [✅] O(N) 椒鹽雜訊（跟 GaussNoise 類似，都是加雜訊）
     amount: [0.01, 0.06]
     salt_vs_pepper: [0.4, 0.6]
@@ -74,51 +80,57 @@ transforms:                                                 # 依序執行的轉
     num_shadows_limit: [1, 2]
     shadow_dimension: 5
     shadow_intensity_range: [0.5, 0.5]
-    p: 0.3
+    p: 0.3 # 0.1
   ColorJitter:                                              # [✅] O(N) 色彩抖動
     brightness: 0.1
     contrast: 0.2
     saturation: 0.2
     hue: 0.02
-    p: 0.3
+    p: 0.3 # 0.1
   Perspective:                                              # [✅] O(N) 透視變形
     scale: [0.02, 0.05]
-    p: 0.3
+    border_mode: 4
+    p: 0.3 # 0.1
   ImageCompression:                                         # [✅] O(N) 壓縮失真
     compression_type: "jpeg"
     quality_range: [60, 100]
-    p: 0.3
+    p: 0.3 # 0.1
   Affine:                                                   # [✅] O(N) 仿射（縮放、平移、旋轉、傾斜）
     scale: [0.9, 1.1]
     translate_percent: [-0.0, 0.0]
     rotate: [-2, 2]
     shear: [-4, 4]
-    p: 0.3
+    border_mode: 4
+    p: 0.3 # 0.1
   SafeRotate:                                               # [✅] O(N) 安全旋轉（整張留在畫面內）
     limit: 4
-    p: 0.3
+    border_mode: 4
+    p: 0.3 # 0.1
   PlanckianJitter:                                          # [✅] O(N) 色溫
     mode: "cied"
     sampling_method: "uniform"
-    p: 0.3
+    p: 0.3 # 0.1
   RandomBrightnessContrast:                                 # [✅] O(N) 亮度對比
     brightness_limit: [-0.2, 0.2]
     contrast_limit: [-0.2, 0.2]
-    p: 0.3
+    p: 0.3 # 0.1
   VerticalFlip:                                             # [✅] O(N) 上下翻轉
-    p: 0.3
+    p: 0.3 # 0.2
   ToGray:                                                   # [✅] O(N) 轉灰階
     num_output_channels: 3
     method: "weighted_average"
-    p: 0.3
+    p: 0.3 # 0.1
   HorizontalFlip:                                           # [✅] O(N) 左右翻轉
     p: 0.4
   PiecewiseAffine:                                          # [✅] O(N·R·C + B·N) 局部仿射扭曲
     scale: [0.010, 0.020]
     nb_rows: 8
     nb_cols: 8
-    p: 0.3
+    p: 0.3 # 0
+
+
   # ---------- 以下 p 是 0，不用；已經有重複類似的 ----------
+
   ThinPlateSpline:                                          # [⚠️] O(N·K + B·N) 薄板樣條變形（跟 GridElasticDeform、ElasticTransform、OpticalDistortion 類似，框容易不準）
     scale_range: [0.02, 0.05]
     p: 0 # 0.2
@@ -149,9 +161,9 @@ transforms:                                                 # 依序執行的轉
     beta_limit: [0.5, 8.0]
     noise_limit: [0.9, 1.1]
     p: 0  # 0.1
-  MotionBlur:                                               # [⚠️] O(N·k²) 動態模糊
+  MotionBlur:                                               # [⚠️] O(N·k²) 動態模糊（跟 GaussianBlur 類似，都是模糊，只留高斯模糊）
     blur_limit: 7
-    p: 0
+    p: 0 # 0.1
   MedianBlur:                                               # [⚠️] O(N·k) 中值模糊
     blur_limit: 4
     p: 0 # 0.1
@@ -196,7 +208,10 @@ transforms:                                                 # 依序執行的轉
   Rotate:                                                   # [⚠️] O(N) 旋轉（跟 SafeRotate、Affine 的旋轉重複，而且 limit 是 0 沒作用）
     limit: 0
     p: 0 # 0.1
+
+
   # ---------- 以下 p 是 0，不用；對 yolo 訓練無幫助 ----------
+
   RandomFog:                                                # [❌] O(N) 霧
     alpha_coef: 0.08
     fog_coef_range: [0.01, 0.01]
@@ -232,13 +247,14 @@ transforms:                                                 # 依序執行的轉
     alpha: [0.2, 0.5]
     threshold: 10
     p: 0
-  GridElasticDeform:                                        # [❌] O(B·N) 格子彈性變形
+  GridElasticDeform:                                        # [❌] O(B·N) 格子彈性變形（每一格各自變形，格線交界會錯開斷掉；實際拍到的東西都是硬的，不會有斷裂）
     num_grid_xy: [4, 4]
     magnitude: 10
-    p: 0 # 0.0
+    p: 0
   FancyPCA:                                                 # [❌] O(N) PCA 改色
     alpha: 50
     p: 0
+
   RandomGridShuffle:                                        # [❌] O(N) 格子打亂  
     grid: [3, 3]
     p: 0
@@ -266,10 +282,10 @@ transforms:                                                 # 依序執行的轉
     gravel_roi: [0.1, 0.4, 0.9, 0.9]
     number_of_patches: 2
     p: 0
-  Equalize:                                                 # [❌] O(N) 直方圖均衡化
+  Equalize:                                                 # [❌] O(N) 直方圖均衡化（對比拉到最大，亮的死白、暗的死黑，跟 CLAHE 疊起來更極端；拉對比交給 CLAHE、RandomBrightnessContrast）
     mode: "cv"
     by_channels: true
-    p: 0 # 0.1
+    p: 0
   Transpose:                                                # [❌] O(N) 轉置
     p: 0
   CropAndPad:                                               # [❌] O(N') 裁切或補邊
@@ -294,11 +310,11 @@ transforms:                                                 # 依序執行的轉
   GridDropout:                                              # [❌] O(N) 格子挖洞
     ratio: 0.5
     p: 0
-  InvertImg:                                                # [❌] O(N) 反相
-    p: 0 # 0.1
-  Solarize:                                                 # [❌] O(N) 曝光過度
+  InvertImg:                                                # [❌] O(N) 反相（顏色整個反過來，黑的變白，實際拍攝不會出現）
+    p: 0
+  Solarize:                                                 # [❌] O(N) 曝光過度（亮的部分反相，實際拍攝不會出現）
     threshold_range: [0.5, 0.5]
-    p: 0 # 0.1
+    p: 0
   Downscale:                                                # [❌] O(N) 縮小再放大
     scale_range: [0.25, 0.25]
     p: 0
@@ -383,3 +399,110 @@ transforms:                                                 # 依序執行的轉
     hole_width_range: [0.1, 0.1]
     fill: 0
     p: 0
+
+
+# ==================== 轉換速度表 ====================
+# 上面三區的轉換都已依這張表排序：先依複雜度（重 → 輕），同一級再依實測時間（慢 → 快）
+# 注意：transforms 依序執行，有開的（✅）順序就是執行順序
+# 複雜度：N 是像素數（H×W），k 是 kernel 大小，m 是額外參數（格數、控制點、圓數、迭代次數等）
+# 複雜度相同的轉換實際速度可以差很多（每個像素要做的事不同），找慢的看實測時間比較準
+# 實測：datasets/die/all/2026-08-01@001.png（720×1280，6 個框）、config/die/augmentation.yaml 的參數，p 強制 1，跑 5 次取平均（2026-10-15）
+#
+# [✅] 有開的
+# 轉換                        複雜度           實測 ms  慢在哪
+# PiecewiseAffine             O(N·m)             7097  skimage 逐像素找所屬三角形再算仿射
+# RandomSunFlare              O(N·m)               91  每個光暈圓都對整張圖疊一次
+# Morphological               O(N·k²)             9.2  膨脹侵蝕，每個框各做一次 mask
+# Sharpen                     O(N·k²)             1.7  3×3 卷積
+# MotionBlur                  O(N·k²)             1.0  小 kernel 卷積
+# GaussianBlur                O(N·k)              1.5  可分離卷積
+# ISONoise                    O(N)                 49  轉 HLS＋兩組亂數
+# OpticalDistortion           O(N)                 40  算整張對映表再 remap
+# Illumination                O(N)                 31  整張光照遮罩 float 運算
+# GaussNoise                  O(N)                 30  每像素常態分布亂數
+# ChromaticAberration         O(N)                9.9  R、B 通道各 remap 一次
+# CLAHE                       O(N)                8.4  分塊直方圖＋插值
+# SaltAndPepper               O(N)                8.3  每像素擲亂數
+# RandomShadow                O(N)                7.8  畫多邊形遮罩再混合
+# ColorJitter                 O(N)                7.2  4 種調色依序做，含 HSV
+# Perspective                 O(N)                4.1  warpPerspective
+# ImageCompression            O(N)                4.0  JPEG 編碼＋解碼
+# Affine                      O(N)                3.9  warpAffine
+# SafeRotate                  O(N)                3.8  warpAffine
+# PlanckianJitter             O(N)                2.3  每通道乘係數
+# RandomBrightnessContrast    O(N)                1.4  LUT 查表
+# VerticalFlip                O(N)                1.1  記憶體搬移
+# ToGray                      O(N)                0.8  加權平均
+# HorizontalFlip              O(N)                0.8  記憶體搬移
+#
+# [⚠️] 不用，已經有重複類似的
+# 轉換                        複雜度           實測 ms  慢在哪
+# ThinPlateSpline             O(N·m)              279  每像素對所有控制點算徑向基函數
+# GlassBlur                   O(N·m)               50  像素交換迴圈多次
+# PlasmaBrightnessContrast    O(N log N)          140  diamond-square 碎形雜訊
+# PlasmaShadow                O(N log N)           98  碎形雜訊
+# Defocus                     O(N·k²)              14  圓盤 kernel 卷積
+# AdvancedBlur                O(N·k²)             1.2  小 kernel 卷積
+# ElasticTransform            O(N·k)              100  位移場大 sigma 模糊再 remap
+# MedianBlur                  O(N·k)              1.6  cv2 直方圖法
+# ShotNoise                   O(N)                136  每像素 Poisson 亂數
+# HueSaturationValue          O(N)                5.6  HSV 來回轉換
+# RandomGamma                 O(N)                1.8  LUT
+# RGBShift                    O(N)                1.6  每通道加值
+# AdditiveNoise               O(N)                1.6  亂數
+# MultiplicativeNoise         O(N)                1.6  亂數相乘
+# RandomToneCurve             O(N)                1.5  LUT
+# Posterize                   O(N)                1.4  位元遮罩
+# ChannelShuffle              O(N)                1.3  通道重排
+# ChannelDropout              O(N)                1.2  通道填值
+# ToSepia                     O(N)                0.9  3×3 色彩矩陣
+# Rotate                      O(N)                0.2  limit 0 幾乎沒做事
+#
+# [❌] 不用，對 yolo 訓練無幫助
+# 轉換                        複雜度           實測 ms  慢在哪
+# RandomFog                   O(N·m)            28240  上千霧粒逐一畫圓＋模糊
+# Superpixels                 O(N·m)             1196  SLIC 分群
+# ZoomBlur                    O(N·m)               84  多次縮放再疊加
+# RingingOvershoot            O(N·k²)              20  sinc 大 kernel 卷積
+# Emboss                      O(N·k²)             1.4  3×3 卷積
+# Spatter                     O(N·k)               83  雜訊＋模糊＋門檻
+# UnsharpMask                 O(N·k)               63  大 sigma 模糊再相減
+# GridElasticDeform           O(N)                128  每格各自網格變形
+# FancyPCA                    O(N)                 79  整張像素做 PCA
+# GridDistortion              O(N)                 37  算對映表再 remap
+# RandomGridShuffle           O(N)                 23  格子搬移＋框重算
+# PixelDropout                O(N)                 22  每像素擲亂數
+# RandomSnow                  O(N)                5.0  HLS 轉換
+# RandomRain                  O(N)                3.6  畫線＋模糊
+# AutoContrast                O(N)                3.5  直方圖＋LUT
+# RandomGravel                O(N)                3.4  畫小點
+# Equalize                    O(N)                3.4  直方圖＋LUT
+# Transpose                   O(N)                2.4  記憶體搬移
+# CropAndPad                  O(N)                2.1  裁切＋補邊
+# Blur                        O(N)                2.0  box filter
+# RandomRotate90              O(N)                1.9  記憶體搬移
+# SquareSymmetry              O(N)                1.8  記憶體搬移
+# D4                          O(N)                1.7  記憶體搬移
+# GridDropout                 O(N)                1.6  填值
+# InvertImg                   O(N)                1.4  255 − x
+# Solarize                    O(N)                1.4  門檻反相
+# Downscale                   O(N)                1.3  縮小再放大
+# RandomScale                 O(N)                1.3  resize
+# RandomResizedCrop           O(N)                1.3  裁切＋resize
+# RandomSizedCrop             O(N)                1.2  裁切＋resize
+# RandomSizedBBoxSafeCrop     O(N)                1.2  裁切＋resize
+# XYMasking                   O(N)                1.2  填條狀遮罩
+# CoarseDropout               O(N)                1.2  填方塊
+# Erasing                     O(N)                1.1  填方塊
+# PadIfNeeded                 O(N)                1.0  補邊
+# Pad                         O(N)                1.0  補邊
+# LongestMaxSize              O(N)                0.7  resize
+# SmallestMaxSize             O(N)                0.5  resize
+# Resize                      O(N)                0.3  resize
+# RandomCropFromBorders       O(輸出)             0.8  切片
+# AtLeastOneBBoxRandomCrop    O(輸出)             0.7  切片
+# Crop                        O(輸出)             0.7  切片
+# RandomCrop                  O(輸出)             0.6  切片
+# CenterCrop                  O(輸出)             0.6  切片
+# BBoxSafeRandomCrop          O(輸出)             0.3  切片
+# ConstrainedCoarseDropout    O(輸出)             0.2  只在框內挖洞
