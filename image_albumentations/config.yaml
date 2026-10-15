@@ -91,6 +91,14 @@ transforms:                                                 # 依序執行的轉
     nb_cols: 8
     p: 0.3
 
+  RandomSunFlare:                                           # 太陽光暈
+    flare_roi: [0.6, 0, 1, 0.3]
+    src_radius: 150
+    src_color: [130, 124, 114]
+    angle_range: [0.1, 0.4]
+    num_flare_circles_range: [2, 4]
+    method: "physics_based"
+    p: 0.2
 
   ###########################################################################################
   ########################################################################################################
@@ -360,14 +368,7 @@ transforms:                                                 # 依序執行的轉
     snow_point_range: [0.1, 0.3]
     method: "bleach"
     p: 0
-  RandomSunFlare:                                           # 太陽光暈
-    flare_roi: [0, 0, 1, 0.5]
-    src_radius: 400
-    src_color: [255, 255, 255]
-    angle_range: [0, 1]
-    num_flare_circles_range: [6, 10]
-    method: "overlay"
-    p: 0
+
   RandomGravel:                                             # 碎石
     gravel_roi: [0.1, 0.4, 0.9, 0.9]
     number_of_patches: 2
