@@ -16,6 +16,9 @@ transforms:                                                 # 依序執行的轉
   VerticalFlip:                                             # 上下翻轉
     p: 0.3
   Rotate:                                                   # 旋轉
+    limit: 0
+    p: 0.5
+  SafeRotate:                                               # 安全旋轉（整張留在畫面內）
     limit: 4
     p: 0.5
   Affine:                                                   # 仿射（縮放、平移、旋轉、傾斜）
@@ -70,14 +73,14 @@ transforms:                                                 # 依序執行的轉
     std_range: [0.02, 0.1]
     mean_range: [0.0, 0.0]
     per_channel: true
-    p: 1
+    p: 0.3
   ISONoise:                                                 # ISO 雜訊
     color_shift: [0.01, 0.05]
     intensity: [0.1, 0.5]
     p: 0.3
   ImageCompression:                                         # 壓縮失真
     compression_type: "jpeg"
-    quality_range: [99, 100]
+    quality_range: [60, 100]
     p: 0.3
   RandomShadow:                                             # 隨機陰影
     shadow_roi: [0, 0.5, 1, 1]
@@ -147,9 +150,6 @@ transforms:                                                 # 依序執行的轉
   D4:                                                       # D4 對稱（8 種翻轉旋轉）
     p: 0
   SquareSymmetry:                                           # 正方形對稱
-    p: 0
-  SafeRotate:                                               # 安全旋轉（整張留在畫面內）
-    limit: 15
     p: 0
   PiecewiseAffine:                                          # 局部仿射扭曲
     scale: [0.01, 0.03]
