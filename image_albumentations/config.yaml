@@ -11,9 +11,8 @@ transforms:           # 依序執行的轉換；上面是有開的（p 大於 0�
   HorizontalFlip: {p: 0.5}                                                                                       # 左右翻轉
   VerticalFlip: {p: 0.3}                                                                                         # 上下翻轉
   Rotate: {limit: 4, p: 0.5}                                                                                    # 旋轉，角度範圍 -15 到 15 度
-  Affine: {scale: [0.9, 1.1], translate_percent: [-0.1, 0.1], rotate: [-15, 15], shear: [-10, 10], p: 0.3}       # 縮放、平移、旋轉、傾斜一起做
-  Perspective: {scale: [0.05, 0.1], p: 0.3}                                                                      # 透視變形，scale 越大越歪
-  CoarseDropout: {p: 0.3}                                                                                        # 隨機挖掉幾個方塊（num_holes_range、hole_height_range、hole_width_range）
+  Affine: {scale: [0.9, 1.1], translate_percent: [-0.1, 0.1], rotate: [-2, 2], shear: [-4, 4], p: 0.3}       # 縮放、平移、旋轉、傾斜一起做
+  Perspective: {scale: [0.02, 0.05], p: 0.3}                                                                     # 透視變形，scale 越大越歪
   RandomBrightnessContrast: {p: 0.5}                                                                             # 亮度、對比（brightness_limit、contrast_limit 預設 ±0.2）
   RandomGamma: {gamma_limit: [80, 120], p: 0.3}                                                                  # Gamma 80 到 120，小於 100 變亮、大於 100 變暗
   CLAHE: {clip_limit: 4.0, p: 0.3}                                                                               # 局部對比增強
@@ -23,13 +22,14 @@ transforms:           # 依序執行的轉換；上面是有開的（p 大於 0�
   GaussianBlur: {blur_limit: [3, 7], p: 0.3}                                                                     # 高斯模糊，核大小 3 到 7
   MotionBlur: {blur_limit: 7, p: 0.3}                                                                            # 動態模糊
   Sharpen: {p: 0.3}                                                                                              # 銳化
-  GaussNoise: {p: 0.5}                                                                                           # 高斯雜訊
+  GaussNoise: {p: 0.2}                                                                                           # 高斯雜訊
   ISONoise: {p: 0.3}                                                                                             # 模擬感光度（ISO）雜訊
   ImageCompression: {p: 0.3}                                                                                     # JPEG / WebP 壓縮失真
   RandomShadow: {p: 0.3}                                                                                         # 隨機陰影
   
   
   # ---------- 以下 p 是 0，不用；要用就把 p 改成大於 0，注意固定尺寸的裁切要在前面、會改尺寸的要在後面 ----------
+  CoarseDropout: {p: 0}                                                                                        # 隨機挖掉幾個方塊（num_holes_range、hole_height_range、hole_width_range）
   Downscale: {p: 0}                                                                                            # 縮小再放大，變模糊
   RandomRotate90: {p: 0}                                                                                       # 隨機轉 90 / 180 / 270 度
   RandomResizedCrop: {size: [720, 1280], scale: [0.5, 1.0], p: 0}                                                # 隨機裁切一塊（面積 50% 到 100%）再縮回 720x1280
