@@ -97,27 +97,9 @@ def to_json_value(o_value):  # 把這次轉換抽到的參數轉成能寫進 jso
 
 with open("config.yaml", encoding="utf-8") as o_file:
     d_config = yaml.safe_load(o_file)
-s_name = d_config["name"]
 i_count = d_config["count"]
 d_bbox = d_config["bbox"]
 d_transforms = d_config["transforms"]
-
-a_bgr_image = cv2.imread(f"runtime/raw/{s_name}.png")
-a_image = cv2.cvtColor(a_bgr_image, cv2.COLOR_BGR2RGB)  # cv2 讀進來是 BGR，Albumentations 的色彩轉換（RGBShift、ChannelDropout、色溫等）假設是 RGB，先轉成 RGB
-with open(f"runtime/raw/{s_name}.json") as o_file:
-    d_label = json.load(o_file)
-
-l_bboxes = []
-l_labels = []
-for d_shape in d_label["shapes"]:
-    l_xs = [l_point[0] for l_point in d_shape["points"]]
-    l_ys = [l_point[1] for l_point in d_shape["points"]]
-    f_x1 = min(l_xs)
-    f_y1 = min(l_ys)
-    f_x2 = max(l_xs)
-    f_y2 = max(l_ys)
-    l_bboxes.append([f_x1, f_y1, f_x2, f_y2])
-    l_labels.append(d_shape["label"])
 
 # config.yaml 的 transforms 每一項是 Albumentations 的類別名稱加參數，依序建立；p 是 0 的就不放進去
 l_transforms = []
@@ -135,26 +117,55 @@ o_transform = albumentations.Compose(l_transforms, bbox_params=o_bbox_params, sa
 
 shutil.rmtree("runtime/output", ignore_errors=True)  # 先清掉舊的輸出，避免殘留上次多出來的檔案
 os.makedirs("runtime/output")
-for i_index in range(i_count):
-    d_result = o_transform(image=a_image, bboxes=l_bboxes, l_labels=l_labels)
-    a_output = d_result["image"]
-    a_bgr_output = cv2.cvtColor(a_output, cv2.COLOR_RGB2BGR)  # 存檔前轉回 BGR，cv2.imwrite 才會存對顏色
-    cv2.imwrite(f"runtime/output/{i_index}.png", a_bgr_output)
 
-    l_shapes = []
-    for l_bbox, s_label in zip(d_result["bboxes"], d_result["l_labels"]):
-        f_x1, f_y1, f_x2, f_y2 = l_bbox[:4]
-        l_points = [[float(f_x1), float(f_y1)], [float(f_x2), float(f_y2)]]
-        l_shapes.append({"label": s_label, "points": l_points, "group_id": None, "shape_type": "rectangle", "flags": {}})
-    d_output = dict(d_label)
-    d_output["shapes"] = l_shapes
-    d_output["imagePath"] = f"{i_index}.png"
-    with open(f"runtime/output/{i_index}.json", "w") as o_file:
-        json.dump(d_output, o_file, ensure_ascii=False, indent=2)
-    l_applied = []
-    for s_applied_name, d_applied_params in d_result["applied_transforms"]:
-        l_applied.append({"name": s_applied_name, "params": to_json_value(d_applied_params)})
-    with open(f"runtime/output/{i_index}.transforms.json", "w") as o_file:
-        json.dump(l_applied, o_file, ensure_ascii=False, indent=2)  # 這張圖實際用了哪些轉換、抽到的參數，之後可以回頭查
-    l_applied_names = [d_applied["name"] for d_applied in l_applied]
-    print(f"轉換完成 {i_index + 1}/{i_count}: runtime/output/{i_index}.png  用了: {', '.join(l_applied_names)}")
+# runtime/raw 裡每一張有同名 .json 的 .png 都擴增 count 張
+l_files = os.listdir("runtime/raw")
+l_files.sort()
+for s_file in l_files:
+    if not s_file.endswith(".png"):
+        continue
+    s_name = os.path.splitext(s_file)[0]
+    if not os.path.exists(f"runtime/raw/{s_name}.json"):
+        continue
+
+    a_bgr_image = cv2.imread(f"runtime/raw/{s_name}.png")
+    a_image = cv2.cvtColor(a_bgr_image, cv2.COLOR_BGR2RGB)  # cv2 讀進來是 BGR，Albumentations 的色彩轉換（RGBShift、ChannelDropout、色溫等）假設是 RGB，先轉成 RGB
+    with open(f"runtime/raw/{s_name}.json") as o_file:
+        d_label = json.load(o_file)
+
+    l_bboxes = []
+    l_labels = []
+    for d_shape in d_label["shapes"]:
+        l_xs = [l_point[0] for l_point in d_shape["points"]]
+        l_ys = [l_point[1] for l_point in d_shape["points"]]
+        f_x1 = min(l_xs)
+        f_y1 = min(l_ys)
+        f_x2 = max(l_xs)
+        f_y2 = max(l_ys)
+        l_bboxes.append([f_x1, f_y1, f_x2, f_y2])
+        l_labels.append(d_shape["label"])
+
+    for i_index in range(i_count):
+        s_out_name = f"{s_name}${i_index}"
+        d_result = o_transform(image=a_image, bboxes=l_bboxes, l_labels=l_labels)
+        a_output = d_result["image"]
+        a_bgr_output = cv2.cvtColor(a_output, cv2.COLOR_RGB2BGR)  # 存檔前轉回 BGR，cv2.imwrite 才會存對顏色
+        cv2.imwrite(f"runtime/output/{s_out_name}.png", a_bgr_output)
+
+        l_shapes = []
+        for l_bbox, s_label in zip(d_result["bboxes"], d_result["l_labels"]):
+            f_x1, f_y1, f_x2, f_y2 = l_bbox[:4]
+            l_points = [[float(f_x1), float(f_y1)], [float(f_x2), float(f_y2)]]
+            l_shapes.append({"label": s_label, "points": l_points, "group_id": None, "shape_type": "rectangle", "flags": {}})
+        d_output = dict(d_label)
+        d_output["shapes"] = l_shapes
+        d_output["imagePath"] = f"{s_out_name}.png"
+        with open(f"runtime/output/{s_out_name}.json", "w") as o_file:
+            json.dump(d_output, o_file, ensure_ascii=False, indent=2)
+        l_applied = []
+        for s_applied_name, d_applied_params in d_result["applied_transforms"]:
+            l_applied.append({"name": s_applied_name, "params": to_json_value(d_applied_params)})
+        with open(f"runtime/output/{s_out_name}.transforms.json", "w") as o_file:
+            json.dump(l_applied, o_file, ensure_ascii=False, indent=2)  # 這張圖實際用了哪些轉換、抽到的參數，之後可以回頭查
+        l_applied_names = [d_applied["name"] for d_applied in l_applied]
+        print(f"轉換完成 {s_out_name} ({i_index + 1}/{i_count}): 用了 {', '.join(l_applied_names)}")
