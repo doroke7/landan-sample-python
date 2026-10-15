@@ -1,0 +1,99 @@
+# 把 sample/image_albumentations/runtime/raw 的一張圖擴增 count 張，轉換依序執行，每一項是 Albumentations 的類別名稱，底下是它的參數（參數名稱同官方文件）
+# p 是觸發機率（0 到 1），0 是不用；中括號 [a, b] 是範圍或尺寸；順序很重要：固定尺寸的裁切放最前面、會改尺寸的（Pad、Resize 等）放最後，不然尺寸被前面的轉換改掉會報錯
+
+name: 2026-08-09@036  # runtime/raw 裡的檔名（不含副檔名），要有同名的 .png 和 .json
+count: 50             # 擴增幾張，範圍 1 以上
+bbox:                 # 框的處理（BboxParams）
+  min_area: 0.0       # 轉換後框的面積小於這個值（像素）就移除，範圍 0 以上
+  min_visibility: 0.0 # 轉換後框還留在畫面內的比例小於這個值就移除，範圍 0 到 1，0 是不檢查
+transforms:           # 依序執行的轉換
+  RandomResizedCrop: {size: [720, 1280], scale: [0.5, 1.0], p: 0.3}                                                # 隨機裁切一塊（面積 50% 到 100%）再縮回 720x1280
+  RandomSizedCrop: {min_max_height: [400, 576], size: [720, 1280], w2h_ratio: 1.7777777777777777, p: 0.3}          # 隨機高度 400 到 576 的裁切，再縮回 720x1280
+  RandomSizedBBoxSafeCrop: {height: 720, width: 1280, p: 0.3}                                                      # 隨機裁切但不會切到框，再縮回 720x1280
+  RandomCrop: {height: 576, width: 1024, p: 0.3}                                                                   # 隨機位置裁成 576x1024
+  CenterCrop: {height: 576, width: 1024, p: 0.3}                                                                   # 中心裁成 576x1024
+  Crop: {x_min: 0, y_min: 0, x_max: 1024, y_max: 576, p: 0.3}                                                      # 固定區域裁切，左上角 1024x576
+  AtLeastOneBBoxRandomCrop: {height: 576, width: 1024, p: 0.3}                                                     # 隨機裁成 576x1024，至少包含一個框
+  BBoxSafeRandomCrop: {p: 0.3}                                                                                     # 隨機裁切，不會切到框，輸出尺寸會變
+  RandomCropFromBorders: {p: 0.3}                                                                                  # 四邊各隨機裁掉最多 10%（crop_left、crop_right、crop_top、crop_bottom）
+  CropAndPad: {percent: [-0.1, 0.1], p: 0.3}                                                                       # 負值裁切、正值補黑邊，最多 10%，補完縮回原尺寸
+  HorizontalFlip: {p: 0.5}                                                                                         # 左右翻轉
+  VerticalFlip: {p: 0.3}                                                                                           # 上下翻轉
+  Transpose: {p: 0.3}                                                                                              # 對角線翻轉（長寬互換）
+  RandomRotate90: {p: 0.3}                                                                                         # 隨機轉 90 / 180 / 270 度
+  D4: {p: 0.3}                                                                                                     # 8 種翻轉加 90 度旋轉的組合隨機選一種
+  SquareSymmetry: {p: 0.3}                                                                                         # 正方形的 8 種對稱隨機選一種，跟 D4 效果一樣
+  Rotate: {limit: 15, p: 0.5}                                                                                      # 旋轉，角度範圍 -15 到 15 度
+  SafeRotate: {limit: 15, p: 0.3}                                                                                  # 旋轉，會縮小畫面讓整張圖留在畫面內
+  Affine: {scale: [0.9, 1.1], translate_percent: [-0.1, 0.1], rotate: [-15, 15], shear: [-10, 10], p: 0.3}         # 縮放、平移、旋轉、傾斜一起做
+  Perspective: {scale: [0.05, 0.1], p: 0.3}                                                                        # 透視變形，scale 越大越歪
+  PiecewiseAffine: {scale: [0.01, 0.03], p: 0}                                                                     # 局部扭曲，很慢而且框可能不準，所以預設不用
+  ElasticTransform: {alpha: 1, sigma: 50, p: 0.3}                                                                  # 彈性扭曲，框可能不準
+  GridDistortion: {num_steps: 5, distort_limit: 0.3, p: 0.3}                                                       # 格子扭曲，框可能不準
+  GridElasticDeform: {num_grid_xy: [4, 4], magnitude: 10, p: 0.3}                                                  # 格子彈性變形，框可能不準
+  OpticalDistortion: {distort_limit: 0.05, p: 0.3}                                                                 # 鏡頭桶狀 / 枕狀扭曲
+  ThinPlateSpline: {scale_range: [0.2, 0.4], p: 0.3}                                                               # 薄板樣條變形，框可能不準
+  RandomGridShuffle: {grid: [3, 3], p: 0.3}                                                                        # 把圖切成 3x3 格再隨機打亂位置
+  CoarseDropout: {p: 0.3}                                                                                          # 隨機挖掉幾個方塊（num_holes_range、hole_height_range、hole_width_range）
+  ConstrainedCoarseDropout: {p: 0.3}                                                                               # 挖掉方塊，位置限制在框內
+  GridDropout: {ratio: 0.5, p: 0.3}                                                                                # 依格子規律挖洞，ratio 是洞佔格子的比例
+  PixelDropout: {dropout_prob: 0.01, p: 0.3}                                                                       # 隨機把 1% 的像素設成 0
+  XYMasking: {num_masks_x: [1, 2], num_masks_y: [1, 2], mask_x_length: [20, 60], mask_y_length: [20, 60], p: 0.3}  # 隨機畫幾條橫線和直線遮住
+  Erasing: {scale: [0.02, 0.33], p: 0.3}                                                                           # 隨機擦掉一塊，scale 是面積比例
+  Morphological: {scale: [2, 3], operation: "dilation", p: 0.3}                                              # 形態學膨脹（dilation）或侵蝕（erosion）
+  Pad: {padding: 20, p: 0.3}                                                                                       # 四邊補 20 像素黑邊
+  PadIfNeeded: {min_height: 800, min_width: 1400, p: 0.3}                                                          # 畫面小於 800x1400 就補黑邊到這個尺寸
+  RandomScale: {scale_limit: 0.1, p: 0.3}                                                                          # 縮放 ±10%，輸出尺寸會變
+  Resize: {height: 360, width: 640, p: 0.3}                                                                        # 縮成 360x640
+  LongestMaxSize: {max_size: 800, p: 0.3}                                                                          # 最長邊縮到 800，等比
+  SmallestMaxSize: {max_size: 400, p: 0.3}                                                                         # 最短邊縮到 400，等比
+  RandomBrightnessContrast: {p: 0.5}                                                                               # 亮度、對比（brightness_limit、contrast_limit 預設 ±0.2）
+  RandomGamma: {gamma_limit: [80, 120], p: 0.3}                                                                    # Gamma 80 到 120，小於 100 變亮、大於 100 變暗
+  RandomToneCurve: {scale: 0.1, p: 0.3}                                                                            # 隨機扭曲色調曲線
+  CLAHE: {clip_limit: 4.0, p: 0.3}                                                                                 # 局部對比增強
+  Equalize: {p: 0.3}                                                                                               # 直方圖均衡化
+  AutoContrast: {p: 0.3}                                                                                           # 自動對比，拉伸到最大範圍
+  Illumination: {p: 0.3}                                                                                           # 模擬光線（線性、圓形、角落）
+  PlasmaBrightnessContrast: {p: 0.3}                                                                               # 用雲狀圖樣局部改亮度對比
+  PlasmaShadow: {p: 0.3}                                                                                           # 用雲狀圖樣加陰影
+  ColorJitter: {brightness: 0.2, contrast: 0.2, saturation: 0.2, hue: 0.02, p: 0.3}                                # 亮度、對比、飽和度、色相抖動，hue 範圍 0 到 0.5
+  HueSaturationValue: {hue_shift_limit: 10, sat_shift_limit: 20, val_shift_limit: 20, p: 0.3}                      # 色相、飽和度、明度位移
+  RGBShift: {r_shift_limit: 20, g_shift_limit: 20, b_shift_limit: 20, p: 0.3}                                      # R、G、B 各通道位移
+  PlanckianJitter: {p: 0.3}                                                                                        # 模擬色溫變化（偏黃到偏藍）
+  ChannelShuffle: {p: 0.3}                                                                                         # R、G、B 通道隨機換位
+  ChannelDropout: {p: 0.3}                                                                                         # 隨機丟掉一個通道
+  ToGray: {p: 0.3}                                                                                                 # 轉灰階
+  ToSepia: {p: 0.3}                                                                                                # 轉懷舊棕褐色
+  InvertImg: {p: 0.3}                                                                                              # 顏色反相
+  Solarize: {p: 0.3}                                                                                               # 曝光過度，亮部反相
+  Posterize: {p: 0.3}                                                                                              # 減少色階（色調分離）
+  FancyPCA: {p: 0.3}                                                                                               # 沿主成分方向改色（AlexNet 的作法）
+  Blur: {blur_limit: 7, p: 0.3}                                                                                    # 平均模糊，核大小 3 到 7
+  GaussianBlur: {blur_limit: [3, 7], p: 0.3}                                                                       # 高斯模糊，核大小 3 到 7
+  MedianBlur: {blur_limit: 5, p: 0.3}                                                                              # 中值模糊，核大小 3 到 5
+  MotionBlur: {blur_limit: 7, p: 0.3}                                                                              # 動態模糊
+  AdvancedBlur: {p: 0.3}                                                                                           # 進階模糊（橢圓核、旋轉）
+  Defocus: {p: 0.3}                                                                                                # 失焦模糊
+  ZoomBlur: {p: 0.3}                                                                                               # 放射狀的縮放模糊
+  GlassBlur: {p: 0}                                                                                                # 玻璃模糊，非常慢所以預設不用
+  Sharpen: {p: 0.3}                                                                                                # 銳化
+  UnsharpMask: {p: 0.3}                                                                                            # 反銳化遮罩，增強邊緣
+  Emboss: {p: 0.3}                                                                                                 # 浮雕
+  RingingOvershoot: {p: 0.3}                                                                                       # 模擬過衝（邊緣振鈴）失真
+  Superpixels: {p: 0}                                                                                              # 超像素，非常慢所以預設不用
+  GaussNoise: {p: 0.5}                                                                                             # 高斯雜訊
+  AdditiveNoise: {p: 0.3}                                                                                          # 加法雜訊（均勻、高斯、拉普拉斯、beta 擇一）
+  MultiplicativeNoise: {multiplier: [0.9, 1.1], p: 0.3}                                                            # 乘法雜訊，像素各乘 0.9 到 1.1
+  ISONoise: {p: 0.3}                                                                                               # 模擬感光度（ISO）雜訊
+  ShotNoise: {p: 0.3}                                                                                              # 光子散粒雜訊
+  SaltAndPepper: {p: 0.3}                                                                                          # 椒鹽雜訊
+  ImageCompression: {p: 0.3}                                                                                       # JPEG / WebP 壓縮失真
+  Downscale: {p: 0.3}                                                                                              # 縮小再放大，變模糊
+  ChromaticAberration: {p: 0.3}                                                                                    # 色差，邊緣紅藍偏移
+  RandomFog: {p: 0.3}                                                                                              # 霧
+  RandomRain: {p: 0.3}                                                                                             # 雨
+  RandomSnow: {p: 0.3}                                                                                             # 雪
+  RandomShadow: {p: 0.3}                                                                                           # 隨機陰影
+  RandomSunFlare: {p: 0.3}                                                                                         # 太陽光暈
+  RandomGravel: {p: 0.3}                                                                                           # 路面碎石顆粒
+  Spatter: {p: 0.3}                                                                                                # 泥點、水滴噴濺
