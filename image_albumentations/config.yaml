@@ -100,6 +100,13 @@ transforms:                                                 # 依序執行的轉
     method: "physics_based"
     p: 0.2
 
+
+  ToGray:                                                   # 轉灰階
+    num_output_channels: 3
+    method: "weighted_average"
+    p: 0.1
+
+    
   ###########################################################################################
   ########################################################################################################
   # ---------- 以下 p 是 0，不用；要用就把 p 改成大於 0，注意固定尺寸的裁切要在前面、會改尺寸的要在後面 ----------
@@ -260,17 +267,14 @@ transforms:                                                 # 依序執行的轉
   PlanckianJitter:                                          # 色溫
     mode: "blackbody"
     sampling_method: "uniform"
-    p: 1
+    p: 0
   ChannelShuffle:                                           # 通道換位
     p: 0
   ChannelDropout:                                           # 通道丟棄
     channel_drop_range: [1, 1]
     fill: 0
     p: 0
-  ToGray:                                                   # 轉灰階
-    num_output_channels: 3
-    method: "weighted_average"
-    p: 1
+
   ToSepia:                                                  # 轉棕褐色
     p: 0
   InvertImg:                                                # 反相
